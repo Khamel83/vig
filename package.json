@@ -1,0 +1,31 @@
+{
+  "name": "vig",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "The Vig - Cloudflare-native prediction pool framework",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name=vig",
+    "db:migrate": "wrangler d1 execute vig-db --file=migrations/0001_initial.sql",
+    "db:console": "wrangler d1 execute vig-db --command"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.0.0",
+    "@astrojs/react": "^4.0.0",
+    "@astrojs/tailwind": "^6.0.0",
+    "astro": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250115.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.100.0"
+  }
+}

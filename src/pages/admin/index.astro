@@ -1,0 +1,266 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Admin">
+  <div class="space-y-8">
+    <div class="flex items-center justify-between">
+      <h1 class="text-3xl font-bold">Admin Dashboard</h1>
+      <button id="create-event-btn" class="btn btn-primary">Create Event</button>
+    </div>
+
+    <!-- Events List -->
+    <section>
+      <h2 class="text-xl font-semibold mb-4">Events</h2>
+      <div id="events-list" class="space-y-4">
+        <p class="text-slate-400">Loading events...</p>
+      </div>
+    </section>
+
+    <!-- Create Event Modal -->
+    <div id="create-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+      <div class="card max-w-lg w-full mx-4">
+        <h2 class="text-xl font-bold mb-4">Create New Event</h2>
+        <form id="create-form" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-2">Slug</label>
+              <input type="text" name="slug" required class="input" placeholder="nfl-2025" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Sport</label>
+              <select name="sport" class="input">
+                <option value="NFL">NFL</option>
+                <option value="NBA">NBA</option>
+                <option value="NCAA_FB">College Football</option>
+                <option value="NCAA_BB">College Basketball</option>
+                <option value="NHL">NHL</option>
+                <option value="MLB">MLB</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-2">Name</label>
+            <input type="text" name="name" required class="input" placeholder="NFL Wins Pool 2025" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-2">Description</label>
+            <textarea name="description" rows="2" class="input" placeholder="Pick 3 teams..."></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-2">Pool Type</label>
+              <select name="pool_type" class="input">
+                <option value="wins">Wins Pool</option>
+                <option value="squares">Squares</option>
+                <option value="bracket">Bracket</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Max Selections</label>
+              <input type="number" name="max_selections" min="1" class="input" placeholder="3" />
+            </div>
+          </div>
+
+          <div id="form-error" class="text-red-500 text-sm hidden"></div>
+
+          <div class="flex gap-4 justify-end">
+            <button type="button" id="cancel-btn" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Check admin auth
+  async function checkAuth() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = '/login';
+      return null;
+    }
+
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return null;
+      }
+
+      const data = await response.json();
+      if (!data.user.is_admin) {
+        window.location.href = '/';
+        return null;
+      }
+
+      return data.user;
+    } catch {
+      window.location.href = '/login';
+      return null;
+    }
+  }
+
+  // Load events
+  async function loadEvents() {
+    const token = localStorage.getItem('token');
+    const eventsList = document.getElementById('events-list') as HTMLDivElement;
+
+    try {
+      const response = await fetch('/api/events', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+
+      if (data.events.length === 0) {
+        eventsList.innerHTML = '<p class="text-slate-400">No events yet. Create one to get started.</p>';
+        return;
+      }
+
+      eventsList.innerHTML = data.events
+        .map(
+          (event: any) => `
+          <div class="card flex items-center justify-between">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold">${event.name}</span>
+                <span class="px-2 py-0.5 text-xs rounded ${
+                  event.status === 'open'
+                    ? 'bg-vig-600'
+                    : event.status === 'active'
+                      ? 'bg-blue-600'
+                      : event.status === 'completed'
+                        ? 'bg-slate-600'
+                        : 'bg-yellow-600'
+                }">${event.status}</span>
+              </div>
+              <p class="text-sm text-slate-400">/${event.slug} | ${event.sport || 'No sport'} | ${event.pool_type || 'No type'}</p>
+            </div>
+            <div class="flex gap-2">
+              <a href="/${event.slug}" class="btn btn-secondary text-sm">View</a>
+              ${
+                event.status === 'draft'
+                  ? `<button data-slug="${event.slug}" data-action="open" class="btn btn-primary text-sm status-btn">Open</button>`
+                  : event.status === 'open'
+                    ? `<button data-slug="${event.slug}" data-action="active" class="btn btn-primary text-sm status-btn">Start</button>`
+                    : event.status === 'active'
+                      ? `<button data-slug="${event.slug}" data-action="completed" class="btn btn-primary text-sm status-btn">Complete</button>`
+                      : ''
+              }
+            </div>
+          </div>
+        `
+        )
+        .join('');
+
+      // Add status change handlers
+      document.querySelectorAll('.status-btn').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          const target = e.target as HTMLButtonElement;
+          const slug = target.dataset.slug;
+          const action = target.dataset.action;
+
+          const response = await fetch(`/api/events/${slug}`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status: action }),
+          });
+
+          if (response.ok) {
+            loadEvents();
+          } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to update status');
+          }
+        });
+      });
+    } catch (error) {
+      eventsList.innerHTML = '<p class="text-red-500">Failed to load events</p>';
+    }
+  }
+
+  // Initialize
+  async function init() {
+    const user = await checkAuth();
+    if (!user) return;
+
+    await loadEvents();
+
+    // Modal handlers
+    const modal = document.getElementById('create-modal') as HTMLDivElement;
+    const createBtn = document.getElementById('create-event-btn') as HTMLButtonElement;
+    const cancelBtn = document.getElementById('cancel-btn') as HTMLButtonElement;
+    const form = document.getElementById('create-form') as HTMLFormElement;
+    const formError = document.getElementById('form-error') as HTMLDivElement;
+
+    createBtn.addEventListener('click', () => {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      form.reset();
+      formError.classList.add('hidden');
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formError.classList.add('hidden');
+
+      const formData = new FormData(form);
+      const token = localStorage.getItem('token');
+
+      try {
+        const response = await fetch('/api/events', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            slug: formData.get('slug'),
+            name: formData.get('name'),
+            description: formData.get('description'),
+            sport: formData.get('sport'),
+            pool_type: formData.get('pool_type'),
+            max_selections: formData.get('max_selections')
+              ? parseInt(formData.get('max_selections') as string)
+              : null,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create event');
+        }
+
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        form.reset();
+        await loadEvents();
+      } catch (error) {
+        formError.textContent = error instanceof Error ? error.message : 'Failed to create event';
+        formError.classList.remove('hidden');
+      }
+    });
+  }
+
+  init();
+</script>

@@ -1,0 +1,274 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const { slug } = Astro.params;
+---
+
+<Layout title="Event">
+  <div id="event-container" data-slug={slug}>
+    <div class="animate-pulse">
+      <div class="h-8 bg-slate-700 rounded w-1/3 mb-4"></div>
+      <div class="h-4 bg-slate-700 rounded w-2/3 mb-8"></div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {Array(8).fill(0).map(() => (
+          <div class="h-24 bg-slate-700 rounded"></div>
+        ))}
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  interface Event {
+    id: string;
+    slug: string;
+    name: string;
+    description: string;
+    sport: string;
+    status: string;
+    pool_type: string;
+    max_selections: number | null;
+  }
+
+  interface Option {
+    id: string;
+    name: string;
+    abbreviation: string;
+  }
+
+  interface Standing {
+    user_id: string;
+    user_name: string;
+    wins: number;
+    losses: number;
+    points: number;
+    rank: number;
+  }
+
+  interface Selection {
+    id: string;
+    option_id: string;
+  }
+
+  const container = document.getElementById('event-container') as HTMLDivElement;
+  const slug = container.dataset.slug;
+
+  async function loadEvent() {
+    try {
+      const response = await fetch(`/api/events/${slug}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        container.innerHTML = `
+          <div class="text-center py-12">
+            <h1 class="text-2xl font-bold mb-2">Event Not Found</h1>
+            <p class="text-slate-400">The event you're looking for doesn't exist.</p>
+            <a href="/" class="btn btn-primary mt-4 inline-block">Back to Home</a>
+          </div>
+        `;
+        return;
+      }
+
+      const { event, options, standings } = data as {
+        event: Event;
+        options: Option[];
+        standings: Standing[];
+      };
+
+      // Check if user is logged in
+      const token = localStorage.getItem('token');
+      let userSelections: Selection[] = [];
+
+      if (token && event.status === 'open') {
+        try {
+          const selectionsResponse = await fetch(`/api/events/${slug}/selections`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (selectionsResponse.ok) {
+            const selectionsData = await selectionsResponse.json();
+            userSelections = selectionsData.selections;
+          }
+        } catch {
+          // Ignore - user not logged in or error
+        }
+      }
+
+      renderEvent(event, options, standings, userSelections, token);
+    } catch (error) {
+      container.innerHTML = `
+        <div class="text-center py-12">
+          <h1 class="text-2xl font-bold mb-2">Error Loading Event</h1>
+          <p class="text-slate-400">Please try again later.</p>
+          <a href="/" class="btn btn-primary mt-4 inline-block">Back to Home</a>
+        </div>
+      `;
+    }
+  }
+
+  function renderEvent(
+    event: Event,
+    options: Option[],
+    standings: Standing[],
+    userSelections: Selection[],
+    token: string | null
+  ) {
+    const selectedIds = new Set(userSelections.map((s) => s.option_id));
+    const maxSelections = event.max_selections || 0;
+
+    const statusBadge = {
+      draft: 'bg-yellow-600',
+      open: 'bg-vig-600',
+      active: 'bg-blue-600',
+      completed: 'bg-slate-600',
+    }[event.status] || 'bg-slate-600';
+
+    container.innerHTML = `
+      <div class="space-y-8">
+        <!-- Header -->
+        <div>
+          <div class="flex items-center gap-3 mb-2">
+            <h1 class="text-3xl font-bold">${event.name}</h1>
+            <span class="px-3 py-1 text-sm rounded ${statusBadge}">${event.status}</span>
+          </div>
+          ${event.description ? `<p class="text-slate-400">${event.description}</p>` : ''}
+          ${maxSelections ? `<p class="text-sm text-slate-500 mt-2">Pick ${maxSelections} teams</p>` : ''}
+        </div>
+
+        ${event.status === 'open' && !token ? `
+          <div class="card bg-slate-700">
+            <p class="text-center">
+              <a href="/login" class="text-vig-500 hover:underline">Sign in</a> to make your picks
+            </p>
+          </div>
+        ` : ''}
+
+        <!-- Selections / Teams Grid -->
+        ${event.status === 'open' && token ? `
+          <section>
+            <h2 class="text-xl font-semibold mb-4">
+              Your Picks
+              <span class="text-sm font-normal text-slate-400">
+                (${selectedIds.size}${maxSelections ? `/${maxSelections}` : ''} selected)
+              </span>
+            </h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3" id="teams-grid">
+              ${options.map((opt) => `
+                <button
+                  data-option-id="${opt.id}"
+                  class="team-btn card py-4 text-center transition-all ${selectedIds.has(opt.id) ? 'ring-2 ring-vig-500 bg-vig-900/30' : 'hover:bg-slate-700'}"
+                >
+                  <div class="font-bold text-lg">${opt.abbreviation || opt.name.slice(0, 3).toUpperCase()}</div>
+                  <div class="text-xs text-slate-400 truncate">${opt.name}</div>
+                </button>
+              `).join('')}
+            </div>
+          </section>
+        ` : event.status !== 'draft' ? `
+          <section>
+            <h2 class="text-xl font-semibold mb-4">Teams</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              ${options.map((opt) => `
+                <div class="card py-4 text-center">
+                  <div class="font-bold text-lg">${opt.abbreviation || opt.name.slice(0, 3).toUpperCase()}</div>
+                  <div class="text-xs text-slate-400 truncate">${opt.name}</div>
+                </div>
+              `).join('')}
+            </div>
+          </section>
+        ` : ''}
+
+        <!-- Leaderboard -->
+        ${(event.status === 'active' || event.status === 'completed') && standings.length > 0 ? `
+          <section>
+            <h2 class="text-xl font-semibold mb-4">Leaderboard</h2>
+            <div class="card overflow-hidden">
+              <table class="w-full">
+                <thead>
+                  <tr class="border-b border-slate-700">
+                    <th class="text-left py-3 px-4">#</th>
+                    <th class="text-left py-3 px-4">Player</th>
+                    <th class="text-right py-3 px-4">Wins</th>
+                    <th class="text-right py-3 px-4">Losses</th>
+                    <th class="text-right py-3 px-4">Points</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${standings.map((s, i) => `
+                    <tr class="border-b border-slate-700/50 ${i === 0 ? 'bg-vig-900/20' : ''}">
+                      <td class="py-3 px-4 font-medium">${i + 1}</td>
+                      <td class="py-3 px-4">${s.user_name}</td>
+                      <td class="py-3 px-4 text-right text-vig-400">${s.wins}</td>
+                      <td class="py-3 px-4 text-right text-red-400">${s.losses}</td>
+                      <td class="py-3 px-4 text-right font-bold">${s.points}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ` : ''}
+      </div>
+    `;
+
+    // Add click handlers for team selection
+    if (event.status === 'open' && token) {
+      document.querySelectorAll('.team-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const optionId = (btn as HTMLElement).dataset.optionId;
+          if (!optionId) return;
+
+          const isSelected = selectedIds.has(optionId);
+
+          try {
+            if (isSelected) {
+              // Remove selection
+              await fetch(`/api/events/${slug}/selections?option_id=${optionId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              selectedIds.delete(optionId);
+              btn.classList.remove('ring-2', 'ring-vig-500', 'bg-vig-900/30');
+              btn.classList.add('hover:bg-slate-700');
+            } else {
+              // Add selection (check max first)
+              if (maxSelections && selectedIds.size >= maxSelections) {
+                alert(`Maximum ${maxSelections} selections allowed`);
+                return;
+              }
+
+              const response = await fetch(`/api/events/${slug}/selections`, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ option_id: optionId }),
+              });
+
+              if (!response.ok) {
+                const data = await response.json();
+                alert(data.error || 'Failed to save selection');
+                return;
+              }
+
+              selectedIds.add(optionId);
+              btn.classList.add('ring-2', 'ring-vig-500', 'bg-vig-900/30');
+              btn.classList.remove('hover:bg-slate-700');
+            }
+
+            // Update counter
+            const counter = document.querySelector('h2 .text-slate-400');
+            if (counter) {
+              counter.textContent = `(${selectedIds.size}${maxSelections ? `/${maxSelections}` : ''} selected)`;
+            }
+          } catch (error) {
+            console.error('Selection error:', error);
+            alert('Failed to save selection');
+          }
+        });
+      });
+    }
+  }
+
+  loadEvent();
+</script>

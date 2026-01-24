@@ -1,0 +1,46 @@
+# Cloudflare Wrangler config for The Vig
+name = "vig"
+compatibility_date = "2025-01-20"
+
+# Pages will use dist/ from Astro build
+pages_build_output_dir = "dist"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "vig-db"
+database_id = "" # Set after: wrangler d1 create vig-db
+
+# KV Namespace for sessions/cache
+[[kv_namespaces]]
+binding = "KV"
+id = "" # Set after: wrangler kv namespace create VIG_KV
+
+# Durable Objects for real-time leaderboards
+[[durable_objects.bindings]]
+name = "LEADERBOARD"
+class_name = "LeaderboardDO"
+
+# Durable Objects migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["LeaderboardDO"]
+
+# Queues for background jobs (score sync)
+[[queues.producers]]
+binding = "QUEUE"
+queue = "score-sync"
+
+[[queues.consumers]]
+queue = "score-sync"
+max_batch_size = 10
+max_batch_timeout = 5
+
+# R2 for assets (optional)
+# [[r2_buckets]]
+# binding = "ASSETS"
+# bucket_name = "vig-assets"
+
+# Environment variables (set in Cloudflare dashboard for production)
+[vars]
+SITE_URL = "https://zoheri.com"
