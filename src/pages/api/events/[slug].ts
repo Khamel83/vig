@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { events, options, standings } from '@/lib/db';
+import { events, options, selections, standings } from '@/lib/db';
 import { requireAdmin, parseBody, jsonResponse, errorResponse } from '@/lib/middleware';
 
 // GET /api/events/[slug] - Get single event with options and standings
@@ -27,10 +27,34 @@ export const GET: APIRoute = async ({ params, locals }) => {
       eventStandings = await standings.listByEvent(DB, event.id);
     }
 
+    // Get all selections with user info for completed events (read-only display)
+    let eventSelections: Array<{
+      id: string;
+      option_id: string;
+      user_id: string;
+      user_name: string;
+    }> = [];
+    if (event.status === 'completed') {
+      const selectionsStmt = DB.prepare(`
+        SELECT s.id, s.option_id, s.user_id, u.name as user_name
+        FROM selections s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.event_id = ?
+      `);
+      const selectionsResult = await selectionsStmt.bind(event.id).all<{
+        id: string;
+        option_id: string;
+        user_id: string;
+        user_name: string;
+      }>();
+      eventSelections = selectionsResult.results;
+    }
+
     return jsonResponse({
       event,
       options: eventOptions,
       standings: eventStandings,
+      selections: eventSelections,
     });
   } catch (error) {
     console.error('Get event error:', error);
