@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { events, options } from '@/lib/db';
-import { NFL_TEAMS } from '@/lib/sports-api';
+import { NFL_TEAMS, NBA_TEAMS } from '@/lib/sports-api';
 import { requireAdmin, jsonResponse, errorResponse } from '@/lib/middleware';
 
 /**
@@ -40,7 +40,9 @@ export const POST: APIRoute = async ({ request, locals, url }) => {
       case 'NFL':
         teams = NFL_TEAMS;
         break;
-      // Add more sports as needed
+      case 'NBA':
+        teams = NBA_TEAMS;
+        break;
       default:
         return errorResponse(`No seed data for sport: ${event.sport}`);
     }

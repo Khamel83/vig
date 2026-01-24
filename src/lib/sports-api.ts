@@ -261,7 +261,41 @@ export async function syncGames(
 /**
  * Get NFL teams for seeding
  */
-// Team IDs from TheRundown API - verified 2026-01-24
+// NBA Team IDs from TheRundown API - verified 2026-01-24
+export const NBA_TEAMS = [
+  { name: 'Atlanta Hawks', abbreviation: 'ATL', external_id: '11' },
+  { name: 'Boston Celtics', abbreviation: 'BOS', external_id: '1' },
+  { name: 'Brooklyn Nets', abbreviation: 'BKN', external_id: '2' },
+  { name: 'Charlotte Hornets', abbreviation: 'CHA', external_id: '12' },
+  { name: 'Chicago Bulls', abbreviation: 'CHI', external_id: '6' },
+  { name: 'Cleveland Cavaliers', abbreviation: 'CLE', external_id: '7' },
+  { name: 'Dallas Mavericks', abbreviation: 'DAL', external_id: '26' },
+  { name: 'Denver Nuggets', abbreviation: 'DEN', external_id: '16' },
+  { name: 'Detroit Pistons', abbreviation: 'DET', external_id: '8' },
+  { name: 'Golden State Warriors', abbreviation: 'GS', external_id: '21' },
+  { name: 'Houston Rockets', abbreviation: 'HOU', external_id: '27' },
+  { name: 'Indiana Pacers', abbreviation: 'IND', external_id: '9' },
+  { name: 'Los Angeles Clippers', abbreviation: 'LAC', external_id: '22' },
+  { name: 'Los Angeles Lakers', abbreviation: 'LAL', external_id: '23' },
+  { name: 'Memphis Grizzlies', abbreviation: 'MEM', external_id: '28' },
+  { name: 'Miami Heat', abbreviation: 'MIA', external_id: '13' },
+  { name: 'Milwaukee Bucks', abbreviation: 'MIL', external_id: '10' },
+  { name: 'Minnesota Timberwolves', abbreviation: 'MIN', external_id: '17' },
+  { name: 'New Orleans Pelicans', abbreviation: 'NO', external_id: '29' },
+  { name: 'New York Knicks', abbreviation: 'NYK', external_id: '3' },
+  { name: 'Oklahoma City Thunder', abbreviation: 'OKC', external_id: '18' },
+  { name: 'Orlando Magic', abbreviation: 'ORL', external_id: '14' },
+  { name: 'Philadelphia 76ers', abbreviation: 'PHI', external_id: '4' },
+  { name: 'Phoenix Suns', abbreviation: 'PHX', external_id: '24' },
+  { name: 'Portland Trail Blazers', abbreviation: 'POR', external_id: '19' },
+  { name: 'Sacramento Kings', abbreviation: 'SAC', external_id: '25' },
+  { name: 'San Antonio Spurs', abbreviation: 'SA', external_id: '30' },
+  { name: 'Toronto Raptors', abbreviation: 'TOR', external_id: '5' },
+  { name: 'Utah Jazz', abbreviation: 'UTAH', external_id: '20' },
+  { name: 'Washington Wizards', abbreviation: 'WSH', external_id: '15' },
+];
+
+// NFL Team IDs from TheRundown API - verified 2026-01-24
 export const NFL_TEAMS = [
   { name: 'Arizona Cardinals', abbreviation: 'ARI', external_id: '89' },
   { name: 'Atlanta Falcons', abbreviation: 'ATL', external_id: '85' },
