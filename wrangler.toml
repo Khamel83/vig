@@ -16,6 +16,11 @@ database_id = "abd188fa-f8a2-4f4e-8802-4ac89e50bd37"
 binding = "KV"
 id = "ba4d73038f8e46258df2a1d3c509b7f2"
 
+# KV Namespace for Astro sessions
+[[kv_namespaces]]
+binding = "SESSION"
+id = "ba4d73038f8e46258df2a1d3c509b7f2"
+
 # Environment variables (secrets set in Cloudflare dashboard)
 [vars]
 SITE_URL = "https://zoheri.com"

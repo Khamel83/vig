@@ -7,8 +7,6 @@ import tailwind from '@astrojs/tailwind';
 // Using vanilla JS in Astro components instead
 export default defineConfig({
   output: 'server',
-  // Base path - app lives at zoheri.com/vig/
-  base: '/vig',
   adapter: cloudflare({
     platformProxy: {
       enabled: true,
