@@ -14,7 +14,7 @@ database_id = "abd188fa-f8a2-4f4e-8802-4ac89e50bd37"
 # KV Namespace for sessions/cache
 [[kv_namespaces]]
 binding = "KV"
-id = "5820f7111a914fa5978f72f1f7591338"
+id = "ba4d73038f8e46258df2a1d3c509b7f2"
 
 # Environment variables (secrets set in Cloudflare dashboard)
 [vars]
