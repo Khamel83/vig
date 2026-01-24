@@ -15,8 +15,13 @@ Project task tracking following [todo.md](https://github.com/todomd/todo.md) spe
 - [x] **Phase 3.1: Real-time Leaderboards** - Durable Objects WebSocket
 - [x] **Phase 3.2: Sports API Integration** - TheRundown API with verified team IDs
 
-### Ready for Deploy
-- [ ] **Phase 4: Deployment** - Create D1 database, KV namespace, deploy to Pages
+### Done ✓
+- [x] **Phase 4: Deployment** - Deployed to Cloudflare Pages
+  - D1 database: `vig-db`
+  - KV namespaces: `KV`, `SESSION`
+  - Production URL: https://vig-6dw.pages.dev
+  - Admin user: zoheri@gmail.com
+  - NFL Wins Pool 2025 event created with 32 teams
 
 ### Backlog
 - [ ] Add NBA teams seed data
@@ -85,4 +90,4 @@ npm run db:migrate        # Run D1 migrations
 | `/api/ws/leaderboard` | WS | Real-time updates |
 
 ---
-*Updated: 2026-01-24 - Core implementation complete, ready for deploy*
+*Updated: 2026-01-24 - Deployed to Cloudflare Pages at https://vig-6dw.pages.dev*
