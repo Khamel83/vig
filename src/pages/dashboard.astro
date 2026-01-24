@@ -1,0 +1,109 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DashboardHeader from '../components/DashboardHeader.astro';
+import PaymentCard from '../components/PaymentCard.astro';
+import MyPools from '../components/MyPools.astro';
+import UpcomingGames from '../components/UpcomingGames.astro';
+import MyPicks from '../components/MyPicks.astro';
+import type { Payment, Event, User } from '../lib/db';
+import { events } from '../lib/db';
+import { payments } from '../lib/payments';
+import { validateToken } from '../lib/auth';
+import type { KVNamespace } from '@cloudflare/workers-types';
+---
+
+<Layout title="Dashboard">
+  <div class="min-h-screen bg-slate-900 text-white">
+    <DashboardHeader />
+
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+      <!-- Welcome Section -->
+      <div class="mb-8">
+        <h1 class="text-3xl font-bold mb-2">Welcome, {user?.name}!</h1>
+        <p class="text-slate-400">Here's your sports pool activity overview</p>
+      </div>
+
+      <!-- Payment Status -->
+      <div class="mb-8">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+          </svg>
+          Payment Status
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {paymentsData.map(payment => (
+            <PaymentCard payment={payment} />
+          ))}
+          {paymentsData.length === 0 && (
+            <div class="col-span-full text-center py-8 text-slate-500">
+              No active pools with pending payments
+            </div>
+          )}
+        </div>
+      </div>
+
+      <!-- My Pools -->
+      <div class="mb-8">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          My Pools
+        </h2>
+
+        <MyPools pools={userPools} />
+      </div>
+
+      <!-- My Picks -->
+      <div class="mb-8">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+          </svg>
+          My Picks
+        </h2>
+
+        <MyPicks userPicks={userPicks} />
+      </div>
+
+      <!-- Upcoming Games -->
+      <div class="mb-8">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Upcoming Games
+        </h2>
+
+        <UpcomingGames upcomingGames={upcomingGames} />
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // This would be populated with actual data in a real implementation
+  const user = /* user data from session */;
+  const paymentsData = /* payments data */;
+  const userPools = /* user's pool data */;
+  const userPicks = /* user's picks */;
+  const upcomingGames = /* upcoming games data */;
+
+  // Function to refresh dashboard data
+  async function refreshDashboard() {
+    try {
+      const response = await fetch('/api/me');
+      const data = await response.json();
+
+      // Update UI with fresh data
+      // This would update the dashboard components
+    } catch (error) {
+      console.error('Failed to refresh dashboard:', error);
+    }
+  }
+
+  // Auto-refresh every 5 minutes
+  setInterval(refreshDashboard, 5 * 60 * 1000);
+</script>

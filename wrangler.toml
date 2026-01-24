@@ -24,6 +24,19 @@ id = "ba4d73038f8e46258df2a1d3c509b7f2"
 # Environment variables (secrets set in Cloudflare dashboard)
 [vars]
 SITE_URL = "https://zoheri.com"
+JWT_SECRET = "your-super-secret-jwt-key-change-this"
+
+# Google OAuth2 (set these in Cloudflare dashboard)
+GOOGLE_OAUTH_CLIENT_ID = ""
+GOOGLE_OAUTH_CLIENT_SECRET = ""
+GOOGLE_OAUTH_REDIRECT_URI = "https://zoheri.com/api/auth/google-callback"
+
+# Email service (Resend)
+RESEND_API_KEY = ""
+
+# Payment handles (optional)
+ADMIN_VENMO_HANDLE = ""
+ADMIN_CASHAPP_HANDLE = ""
 
 # Note: Durable Objects and Queues require separate Worker deployment
 # They are not supported directly in Pages

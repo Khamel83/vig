@@ -1,0 +1,85 @@
+---
+import type { User } from '../lib/db';
+import { validateToken } from '../lib/auth';
+---
+
+<div class="bg-slate-800 border-b border-slate-700">
+  <div class="container mx-auto px-4 py-4 max-w-6xl flex justify-between items-center">
+    <div class="flex items-center space-x-4">
+      <h1 class="text-xl font-bold text-white">
+        <a href="/" class="hover:text-vig-400 transition-colors">
+          The Vig
+        </a>
+      </h1>
+      <nav class="hidden md:flex space-x-6">
+        <a href="/dashboard" class="text-vig-400 font-medium">Dashboard</a>
+        <a href="/pools" class="text-slate-400 hover:text-white transition-colors">Pools</a>
+        <a href="/debts" class="text-slate-400 hover:text-white transition-colors">Debts</a>
+        {user?.is_admin && (
+          <>
+            <a href="/admin" class="text-slate-400 hover:text-white transition-colors">Admin</a>
+          </>
+        )}
+      </nav>
+    </div>
+
+    <div class="flex items-center space-x-4">
+      <!-- User Profile Dropdown -->
+      <div class="relative group">
+        <button class="flex items-center space-x-2 bg-slate-700 hover:bg-slate-600 rounded-lg px-3 py-2 transition-colors">
+          <img
+            src={user?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || '')}&background=3b82f6&color=fff`}
+            alt={user?.name}
+            class="w-8 h-8 rounded-full"
+          />
+          <span class="text-white font-medium">{user?.name}</span>
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+
+        <!-- Dropdown Menu -->
+        <div class="absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+          <div class="py-2">
+            <a href="/profile" class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+              Profile
+            </a>
+            <a href="/settings" class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+              Settings
+            </a>
+            <div class="border-t border-slate-700 my-1"></div>
+            <button onclick="logout()" class="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function logout() {
+    // Clear local storage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+
+    // Redirect to login
+    window.location.href = '/login';
+  }
+
+  // Check if user is authenticated on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+
+    if (!token || !user) {
+      window.location.href = '/login';
+    } else {
+      // Optionally validate token with server
+      // fetch('/api/me', {
+      //   headers: { 'Authorization': `Bearer ${token}` }
+      // }).catch(() => logout());
+    }
+  });
+</script>

@@ -1,0 +1,68 @@
+---
+import { payments } from '../lib/payments';
+import type { Payment, Event } from '../lib/db';
+---
+
+<div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+  <div class="flex justify-between items-start mb-3">
+    <div>
+      <h3 class="font-semibold text-white">{event?.name || 'Unknown Pool'}</h3>
+      <p class="text-sm text-slate-400">{payment.created_at ? new Date(payment.created_at * 1000).toLocaleDateString() : ''}</p>
+    </div>
+    <div class={`text-lg font-bold ${
+      payment.status === 'confirmed' ? 'text-green-400' :
+      payment.status === 'rejected' ? 'text-red-400' :
+      'text-yellow-400'
+    }`}>
+      {payments.formatAmount(payment.amount_cents)}
+    </div>
+  </div>
+
+  <div class="space-y-2">
+    <div class="flex justify-between text-sm">
+      <span class="text-slate-400">Method:</span>
+      <span class="text-white capitalize">{payment.method}</span>
+    </div>
+
+    <div class="flex justify-between text-sm">
+      <span class="text-slate-400">Status:</span>
+      <span class={`
+        px-2 py-1 rounded-full text-xs font-medium
+        ${payment.status === 'confirmed' ? 'bg-green-900/20 text-green-400' : ''}
+        ${payment.status === 'rejected' ? 'bg-red-900/20 text-red-400' : ''}
+        ${payment.status === 'pending' ? 'bg-yellow-900/20 text-yellow-400' : ''}
+      `}>
+        {payment.status === 'confirmed' ? '✅ Paid' :
+         payment.status === 'rejected' ? '❌ Rejected' :
+         '⏳ Pending'}
+      </span>
+    </div>
+
+    {payment.dispute_status === 'pending' && (
+      <div class="bg-orange-900/20 border border-orange-800 rounded p-2 mt-3">
+        <p class="text-xs text-orange-400">⚠️ Payment dispute in progress</p>
+        {payment.dispute_notes && (
+          <p class="text-xs text-orange-300 mt-1">{payment.dispute_notes}</p>
+        )}
+      </div>
+    )}
+
+    {payment.status === 'pending' && (
+      <div class="mt-4">
+        <button
+          onclick="showPaymentModal('${payment.id}')"
+          class="w-full bg-vig-600 hover:bg-vig-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+        >
+          Submit Payment
+        </button>
+      </div>
+    )}
+  </div>
+</div>
+
+<script>
+  function showPaymentModal(paymentId) {
+    // This would open a modal with payment submission form
+    console.log('Show payment modal for:', paymentId);
+  }
+</script>

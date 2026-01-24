@@ -1,0 +1,144 @@
+---
+import Layout from '../layouts/Layout.astro';
+import type { Context } from 'astro';
+---
+
+<Layout title="Join Pool">
+  <div class="min-h-screen bg-slate-900 text-white flex items-center justify-center">
+    <div class="container mx-auto px-4 max-w-md w-full">
+      <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+        {inviteCode ? (
+          <div class="space-y-6">
+            <div class="text-center">
+              <h1 class="text-2xl font-bold mb-2">Join Pool</h1>
+              <p class="text-slate-400">
+                You've been invited to join a pool using this code:
+              </p>
+            </div>
+
+            <div class="bg-slate-700 rounded-lg p-4 text-center">
+              <p class="text-3xl font-mono font-bold text-vig-400 mb-2">
+                {inviteCode}
+              </p>
+              <p class="text-sm text-slate-400">This invitation code will expire in 24 hours</p>
+            </div>
+
+            {error && (
+              <div class="bg-red-900/20 border border-red-800 rounded-lg p-3">
+                <p class="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
+            <div class="space-y-3">
+              <button
+                onclick="joinPool()"
+                class="w-full bg-vig-600 hover:bg-vig-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+              >
+                Join Pool with Google
+              </button>
+
+              <div class="text-center">
+                <p class="text-sm text-slate-400">
+                  Already have an account?
+                  <a href="/login" class="text-vig-400 hover:underline ml-1">Sign in</a>
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div class="space-y-6">
+            <div class="text-center">
+              <h1 class="text-2xl font-bold mb-2">Join a Pool</h1>
+              <p class="text-slate-400">
+                Enter your invitation code to join a pool
+              </p>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <label for="invite-code" class="block text-sm font-medium mb-2">Invitation Code</label>
+                <input
+                  type="text"
+                  id="invite-code"
+                  placeholder="e.g., NBA26-KHAMEL"
+                  class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
+                />
+              </div>
+
+              {error && (
+                <div class="bg-red-900/20 border border-red-800 rounded-lg p-3">
+                  <p class="text-red-400 text-sm">{error}</p>
+                </div>
+              )}
+
+              <button
+                onclick="validateAndJoin()"
+                class="w-full bg-vig-600 hover:bg-vig-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+              >
+                Validate Code
+              </button>
+            </div>
+
+            <div class="text-center">
+              <p class="text-sm text-slate-400">
+                Need an invitation?
+                <a href="/contact" class="text-vig-400 hover:underline ml-1">Contact the pool admin</a>
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const inviteCode = new URLSearchParams(window.location.search).get('code');
+    let currentInviteCode = inviteCode || '';
+
+    function validateAndJoin() {
+      const code = document.getElementById('invite-code').value.trim();
+
+      if (!code) {
+        showError('Please enter an invitation code');
+        return;
+      }
+
+      // Validate code format (basic check)
+      if (!code.includes('-')) {
+        showError('Invalid invitation code format');
+        return;
+      }
+
+      // Store code and redirect to Google OAuth
+      localStorage.setItem('invite_code', code);
+      window.location.href = '/api/auth/google';
+    }
+
+    function joinPool() {
+      // Get invite code from storage or form
+      const code = currentInviteCode || localStorage.getItem('invite_code');
+
+      if (!code) {
+        showError('No invitation code found');
+        return;
+      }
+
+      // Proceed with OAuth flow
+      // The OAuth callback will handle joining the pool
+      window.location.href = '/api/auth/google';
+    }
+
+    function showError(message) {
+      const errorDiv = document.querySelector('.bg-red-900\\/20');
+      if (errorDiv) {
+        errorDiv.innerHTML = `<p class="text-red-400 text-sm">${message}</p>`;
+        errorDiv.classList.remove('hidden');
+      }
+    }
+
+    // Auto-fill invite code if provided in URL
+    if (inviteCode) {
+      document.getElementById('invite-code').value = inviteCode;
+    }
+  </script>
+</Layout>

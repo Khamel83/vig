@@ -1,0 +1,71 @@
+---
+import type { Selection, Event, Option } from '../lib/db';
+---
+
+<div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+  <h3 class="font-semibold text-white mb-4">All My Selections</h3>
+
+  {userPicks.length > 0 ? (
+    <div class="space-y-6">
+      {Object.entries(groupPicksBySport(userPicks)).map(([sport, picks]) => (
+        <div key={sport}>
+          <h4 class="text-lg font-medium text-white mb-3 capitalize">{sport}</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {picks.map(pick => (
+              <div class="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-colors">
+                <div class="flex justify-between items-start mb-2">
+                  <div>
+                    <h5 class="font-medium text-white">{pick.option_name}</h5>
+                    {pick.abbreviation && (
+                      <span class="text-sm text-slate-400 ml-2">({pick.abbreviation})</span>
+                    )}
+                  </div>
+                  {pick.wins !== null && pick.losses !== null && (
+                    <div class="text-right">
+                      <div class="text-sm font-medium text-white">
+                        {pick.wins}-{pick.losses}
+                      </div>
+                      <div class="text-xs text-slate-400">
+                        {pick.percentage?.toFixed(1)}% win rate
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {pick.event_name && (
+                  <p class="text-xs text-slate-400 mt-1">
+                    {pick.event_name}
+                  </p>
+                )}
+
+                {pick.created_at && (
+                  <p class="text-xs text-slate-500 mt-2">
+                    {new Date(pick.created_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div class="text-center py-8 text-slate-500">
+      You haven't made any selections yet
+      <a href="/pools" class="text-vig-400 hover:underline ml-2">Browse pools</a>
+    </div>
+  )}
+</div>
+
+<script>
+  function groupPicksBySport(picks) {
+    return picks.reduce((groups, pick) => {
+      const sport = pick.sport || 'Other';
+      if (!groups[sport]) {
+        groups[sport] = [];
+      }
+      groups[sport].push(pick);
+      return groups;
+    }, {});
+  }
+</script>

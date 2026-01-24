@@ -1,0 +1,93 @@
+---
+import type { Event, User } from '../lib/db';
+import { standings } from '../lib/db';
+import { payments } from '../lib/payments';
+---
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {pools.length > 0 ? pools.map(pool => {
+    const poolStanding = pool.standings ? pool.standings[0] : null;
+    const userPayment = paymentsData.find(p => p.event_id === pool.id);
+
+    return (
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors">
+        <div class="flex justify-between items-start mb-3">
+          <div>
+            <h3 class="font-semibold text-white">{pool.name}</h3>
+            <p class="text-sm text-slate-400 capitalize">{pool.sport}</p>
+          </div>
+          {userPayment?.status === 'confirmed' ? (
+            <span class="bg-green-900/20 text-green-400 px-2 py-1 rounded-full text-xs">
+              ✅ Paid
+            </span>
+          ) : (
+            <span class="bg-yellow-900/20 text-yellow-400 px-2 py-1 rounded-full text-xs">
+              ⏳ Unpaid
+            </span>
+          )}
+        </div>
+
+        {poolStanding && (
+          <div class="space-y-2 mb-4">
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-400">Standings:</span>
+              <span class="text-white font-medium">#{poolStanding.rank || 'TBD'}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-400">Record:</span>
+              <span class="text-white">
+                {poolStanding.wins || 0}-{poolStanding.losses || 0}
+                {poolStanding.points ? ` (${poolStanding.points.toFixed(1)})` : ''}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div class="space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-400">Status:</span>
+            <span class={
+              pool.status === 'active' ? 'text-green-400' :
+              pool.status === 'completed' ? 'text-blue-400' :
+              'text-yellow-400'
+            }>
+              {pool.status === 'draft' ? '📝 Draft' :
+               pool.status === 'open' ? '🚪 Open' :
+               pool.status === 'active' ? '🏆 Active' :
+               pool.status === 'completed' ? '✅ Completed' :
+               '⏸️ ' + pool.status}
+            </span>
+          </div>
+
+          {userPayment?.status === 'pending' && (
+            <button
+              onclick="submitPayment('${pool.id}')"
+              class="w-full bg-vig-600 hover:bg-vig-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              Submit Payment
+            </button>
+          )}
+
+          <a
+            href={`/${pool.slug}`}
+            class="block w-full bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium py-2 px-4 rounded-lg text-center transition-colors"
+          >
+            View Pool
+          </a>
+        </div>
+      </div>
+    );
+  }) : (
+    <div class="col-span-full text-center py-8 text-slate-500">
+      You're not in any active pools
+      <a href="/pools" class="text-vig-400 hover:underline ml-2">Browse available pools</a>
+    </div>
+  )}
+</div>
+
+<script>
+  function submitPayment(eventId) {
+    // This would open payment submission modal
+    console.log('Submit payment for:', eventId);
+  }
+</script>
