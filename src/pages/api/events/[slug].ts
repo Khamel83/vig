@@ -50,11 +50,36 @@ export const GET: APIRoute = async ({ params, locals }) => {
       eventSelections = selectionsResult.results;
     }
 
+    // Get team-level standings (wins/losses per team)
+    const teamStandingsStmt = DB.prepare(`
+      SELECT
+        o.id as option_id,
+        COUNT(CASE WHEN g.status = 'final' AND (
+          (g.home_team_id = o.id AND g.home_score > g.away_score) OR
+          (g.away_team_id = o.id AND g.away_score > g.home_score)
+        ) THEN 1 END) as wins,
+        COUNT(CASE WHEN g.status = 'final' AND (
+          (g.home_team_id = o.id AND g.home_score < g.away_score) OR
+          (g.away_team_id = o.id AND g.away_score < g.home_score)
+        ) THEN 1 END) as losses
+      FROM options o
+      LEFT JOIN games g ON (g.home_team_id = o.id OR g.away_team_id = o.id) AND g.event_id = o.event_id
+      WHERE o.event_id = ?
+      GROUP BY o.id
+    `);
+    const teamStandingsResult = await teamStandingsStmt.bind(event.id).all<{
+      option_id: string;
+      wins: number;
+      losses: number;
+    }>();
+    const teamStandings = new Map(teamStandingsResult.results.map(t => [t.option_id, { wins: t.wins, losses: t.losses }]));
+
     return jsonResponse({
       event,
       options: eventOptions,
       standings: eventStandings,
       selections: eventSelections,
+      team_standings: Object.fromEntries(teamStandings),
     });
   } catch (error) {
     console.error('Get event error:', error);

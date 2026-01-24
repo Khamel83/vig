@@ -46,6 +46,7 @@ import Layout from '../layouts/Layout.astro';
       points: number;
       rank: number;
     }>;
+    team_standings: Record<string, { wins: number; losses: number }>;
   }
 
   interface OwnerStanding {
@@ -97,6 +98,9 @@ import Layout from '../layouts/Layout.astro';
     // Create a map of option_id to option data
     const optionMap = new Map(data.options.map(o => [o.id, o]));
 
+    // Create a standings lookup from API data
+    const standingsMap = data.team_standings || {};
+
     // Group selections by owner
     const ownerMap = new Map<string, OwnerStanding>();
 
@@ -116,15 +120,16 @@ import Layout from '../layouts/Layout.astro';
       }
 
       const owner = ownerMap.get(selection.user_id)!;
-      // Placeholder wins/losses - in production this would come from standings
+      const teamStanding = standingsMap[selection.option_id] || { wins: 0, losses: 0 };
+
       owner.teams.push({
         name: option.name,
         abbreviation: option.abbreviation || option.name.slice(0, 3).toUpperCase(),
-        wins: 0,
-        losses: 0,
+        wins: teamStanding.wins,
+        losses: teamStanding.losses,
       });
-      owner.total_wins += 0;
-      owner.total_losses += 0;
+      owner.total_wins += teamStanding.wins;
+      owner.total_losses += teamStanding.losses;
     }
 
     // Convert to array and rank by total wins (descending), then by total losses (ascending)

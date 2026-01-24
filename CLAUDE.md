@@ -28,7 +28,12 @@ Domain: `zoheri.com/nfl`, `zoheri.com/nba`, etc.
 
 ## Project Status
 
-**Phase**: Planning - See `PLAN.md` for full implementation details
+**Phase**: MVP Complete - NBA26 pool live at `zoheri.com/nba26`
+
+**Live Deployments:**
+- **NBA26 Pool**: `https://zoheri.com/nba26` (10 players, snake draft, auto-synced standings)
+- **Auto-sync**: Every 3 hours via Cloudflare Cron (vig-sync worker)
+- **Route**: zoheri.com/nba26 → vig-6dw.pages.dev/nba26 (via Poytz redirector)
 
 **Target**: $0/month FOREVER (not just MVP)
 

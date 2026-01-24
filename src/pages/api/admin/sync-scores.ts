@@ -40,8 +40,8 @@ export const POST: APIRoute = async ({ request, locals, url }) => {
         return errorResponse('Event not found', 404);
       }
 
-      if (event.status !== 'active') {
-        return errorResponse('Event must be active to sync scores');
+      if (event.status !== 'active' && event.status !== 'completed') {
+        return errorResponse('Event must be active or completed to sync scores');
       }
 
       const sportId = SPORT_IDS[event.sport as keyof typeof SPORT_IDS];
@@ -71,8 +71,8 @@ export const POST: APIRoute = async ({ request, locals, url }) => {
         standings_updated: standingsUpdated,
       });
     } else {
-      // Sync all active events
-      const activeEvents = await events.list(DB, 'active');
+      // Sync all active and completed events
+      const activeEvents = [...await events.list(DB, 'active'), ...await events.list(DB, 'completed')];
 
       for (const event of activeEvents) {
         try {

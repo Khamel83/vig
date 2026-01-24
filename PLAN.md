@@ -539,3 +539,99 @@ ADMIN_EMAIL=
 - [Cloudflare Pages Functions](https://developers.cloudflare.com/pages/functions/)
 - [Astro + Cloudflare Integration](https://docs.astro.build/en/guides/deploy/cloudflare/)
 - [TheRundown API](https://therundown.io/api)
+
+---
+
+## LIVE DEPLOYMENT: NBA26 Pool (January 2026)
+
+### Overview
+The NBA 2026 pool is **live at `https://zoheri.com/nba26`** with:
+- 10 players (snake draft format)
+- 3 NBA teams per player
+- Automatic standings updates every 3 hours
+- Read-only display (no auth required)
+
+### How It Works
+
+**1. Routing (via Poytz)**
+```
+zoheri.com/nba26
+    ↓ (307 redirect via poytz worker)
+vig-6dw.pages.dev/nba26
+    ↓ (Astro page)
+fetches /api/events/nba26
+    ↓ (API returns data)
+Renders leaderboard with live standings
+```
+
+**2. Auto-Sync (Cloudflare Cron)**
+- **Worker**: `vig-sync` deployed independently
+- **Schedule**: Every 3 hours (`0 */3 * * *`)
+- **Function**:
+  - Fetches NBA games from TheRundown API (last 7 days only)
+  - Upserts games to D1 `games` table
+  - Calculates standings from completed games
+  - Updates `standings` table
+
+**3. Database Schema**
+```sql
+-- Event (status = 'completed' for read-only)
+INSERT INTO events (id, slug, name, sport, status, pool_type)
+VALUES ('nba26-event', 'nba26', 'NBA 2026 Pool', 'NBA', 'completed', 'wins');
+
+-- 10 users (adam, whet, mzapp, omar, pete, ben, carter, eric, mintz, mcard)
+-- 30 NBA teams as options (using TheRundown external_id)
+-- 30 selections (3 per user via snake draft)
+-- Standings calculated from games table
+```
+
+**4. Team Standings Calculation**
+```typescript
+// Per-team wins/losses from games table
+SELECT o.id,
+  COUNT(CASE WHEN g.status = 'final' AND
+    ((g.home_team_id = o.id AND g.home_score > g.away_score) OR
+     (g.away_team_id = o.id AND g.away_score > g.home_score))
+    THEN 1 END) as wins
+FROM options o
+LEFT JOIN games g ON (g.home_team_id = o.id OR g.away_team_id = o.id)
+WHERE o.event_id = 'nba26-event'
+```
+
+### API Key Management
+- **THE_RUNDOWN_API_KEY**: Set in Cloudflare Pages dashboard
+- **Free tier**: 1,000 requests/month
+- **Usage**: ~584 requests/day (sync last 7 days, 8x/day)
+- **Headroom**: ~33 days/month (well within limits)
+
+### Snake Draft Assignments
+```
+Round 1: adam→OKC, whet→CLE, mzapp→NYK, omar→DEN, pete→HOU, ben→ORL, carter→GS, eric→LAC, mintz→MIN, mcard→DET
+Round 2: carter→ATL, mcard→SA, mzapp→DAL, mintz→LAL, pete→MIL, whet→BOS, eric→MEM, omar→PHI, ben→IND, adam→TOR
+Round 3: eric→MIA, ben→SAC, mintz→CHI, mcard→CHA, omar→POR, adam→NO, pete→PHX, carter→UTAH, whet→BKN, mzapp→WSH
+```
+
+### Files Created/Modified
+- `migrations/nba26_data.sql` - Database migration (executed)
+- `src/pages/nba26.astro` - Leaderboard page
+- `src/pages/api/events/[slug].ts` - Added `team_standings` to API response
+- `scripts/sync-nba26.js` - Auto-sync worker
+- `wrangler.sync.toml` - Sync worker config with Cron triggers
+
+### Administration
+```bash
+# Manual sync trigger
+curl https://vig-sync.cf-2b5.workers.dev/
+
+# Check current standings via API
+curl https://vig-6dw.pages.dev/api/events/nba26 | jq '.standings'
+
+# Direct database query
+wrangler d1 execute vig-db --remote --command="SELECT user_name, wins, losses FROM standings JOIN users ON standings.user_id = users.id WHERE event_id = 'nba26-event' ORDER BY wins DESC"
+```
+
+### Future Enhancements
+1. **Gmail Auth** - OAuth2 integration for user management
+2. **Admin Panel** - Create new pools, manage teams
+3. **Multiple Pool Types** - Squares pools, brackets
+4. **Real-time WebSocket** - Live score updates during games
