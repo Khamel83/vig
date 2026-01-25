@@ -13,8 +13,8 @@ database_id = "abd188fa-f8a2-4f4e-8802-4ac89e50bd37"
 binding = "KV"
 id = "vig-kv"
 
-# Cron triggers - sync standings hourly
-# The sync-standings.js script internally checks if it should sync based on game times
-# So we can run hourly and let the script decide if it's time to sync
+# Cron triggers - sync standings twice daily during season
+# - 9am ET: Morning update
+# - 11pm ET: After games end
 [triggers]
-crons = ["0 * * * *"]  # Every hour at :00
+crons = ["0 13 * * *", "0 3 * * *"]  # 9am ET, 11pm ET (UTC times)

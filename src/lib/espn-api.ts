@@ -250,7 +250,7 @@ export class ESPNAPI {
 
   /**
    * Fallback: Scrape NBA standings from ESPN.com
-   * This is a simpler fallback that parses HTML
+   * Uses simple regex to parse team records from HTML
    */
   async scrapeNBAStandings(): Promise<ESPNStanding[]> {
     const url = 'https://www.espn.com/nba/standings';
@@ -261,18 +261,38 @@ export class ESPNAPI {
     }
 
     const html = await response.text();
-
-    // ESPN standings are in a table with class "standings"
-    // This is a simple regex-based extraction for fallback
     const standings: ESPNStanding[] = [];
 
-    // Extract team abbreviations and records using regex
-    // Looking for patterns like: ATL, 11-36
-    const teamRegex = /<abbr[^>]*title="([^"]+)"[^>]*>([A-Z]+)<\/abbr>/g;
-    const recordRegex = /(\d+)-(\d+)/g;
+    // ESPN standings page has a table with team abbreviations and records
+    // Pattern: Team abbreviation followed by wins-losses
+    // We'll parse the HTML to extract team data
 
-    // This is a basic implementation - the full HTML parsing would be more complex
-    // For now, we'll rely on the API working and this being emergency fallback
+    // Find all table rows with team data
+    const tableRows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+
+    for (const row of tableRows) {
+      // Look for team abbreviation (3 letters like ATL, BOS, etc.)
+      const abbrMatch = row.match(/[A-Z]{3}/);
+      if (!abbrMatch) continue;
+
+      const abbr = abbrMatch[0];
+      if (!Object.values(INTERNAL_TO_ESPN_ABBREV).includes(abbr)) continue;
+
+      // Look for record pattern like "37-9"
+      const recordMatch = row.match(/(\d+)-(\d+)/);
+      if (!recordMatch) continue;
+
+      const wins = parseInt(recordMatch[1], 10);
+      const losses = parseInt(recordMatch[2], 10);
+
+      standings.push({
+        teamId: abbr,
+        teamName: abbr,
+        teamAbbr: abbr,
+        wins,
+        losses,
+      });
+    }
 
     return standings;
   }
