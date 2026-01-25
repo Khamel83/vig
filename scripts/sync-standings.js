@@ -1,25 +1,20 @@
 /**
  * Standings Sync Worker
- * Primary: Playwright scraper (reliable, scrapes ESPN pages)
- * Backup: API-Sports.io (if available)
+ * Uses sports-reference.com scrapers (clean HTML, easy to parse)
  *
- * URLs scraped:
- * - https://www.espn.com/nba/standings
- * - https://www.espn.com/nfl/standings
- * - https://www.espn.com/mlb/standings
- * - https://www.espn.com/nhl/standings
- * - https://www.espn.com/f1/standings
- * - https://www.espn.com/soccer/table/_/league/fifa.world
+ * URLs:
+ * - NBA: https://www.basketball-reference.com/leagues/NBA_2026_standings.html
+ * - NFL: https://www.pro-football-reference.com/years/2025/#all_AFC, #all_NFC
+ * - MLB: https://www.baseball-reference.com/leagues/majors/2025-standings.shtml
+ * - Soccer: https://fbref.com/en/comps/1/schedule/World-Cup-Scores-and-Fixtures
  *
  * Schedule: Twice daily (9am ET, 11pm ET)
  */
 
-import { ApiSportsClient, syncApiSportsStandings } from '../src/lib/api-sports.ts';
-import { PlaywrightScraper, syncScrapedStandings } from '../src/lib/playwright-scraper.ts';
+import { scrapeNBAStandings, syncScrapedStandings } from '../src/lib/sports-reference-scraper.ts';
 
 export interface Env {
   DB: D1Database;
-  API_SPORTS_KEY?: string;  // Optional: can use default key
 }
 
 /**
@@ -29,10 +24,8 @@ const SPORT_CONFIGS = {
   nba26: {
     eventId: 'nba26-event',
     sport: 'NBA',
-    season: 2025,
-    apiSportsLeague: 12,
   },
-  // Future: nfl2025, mlb2026, nhl2026, etc.
+  // Future: nfl2025, mlb2026, etc.
 } as const;
 
 /**
@@ -111,103 +104,51 @@ async function updateUserStandings(db: D1Database, eventId: string): Promise<num
 }
 
 /**
- * Sync a single sport with fallback
- * Try Playwright scraper first (reliable), then API-Sports (if needed)
- */
-async function syncSportWithFallback(
-  db: D1Database,
-  config: typeof SPORT_CONFIGS[keyof typeof SPORT_CONFIGS],
-  apiKey?: string
-): Promise<{ synced: number; source: string; usersUpdated: number; error?: string }> {
-  try {
-    // Use Playwright scraper as PRIMARY (it actually works)
-    console.log(`  Using Playwright scraper for ${config.sport}...`);
-    const scraper = new PlaywrightScraper();
-    let scrapedStandings: Awaited<ReturnType<typeof scraper.scrapeNBA>>;
-
-    switch (config.sport) {
-      case 'NBA':
-        scrapedStandings = await scraper.scrapeNBA();
-        break;
-      case 'NFL':
-        scrapedStandings = await scraper.scrapeNFL();
-        break;
-      case 'MLB':
-        scrapedStandings = await scraper.scrapeMLB();
-        break;
-      case 'NHL':
-        scrapedStandings = await scraper.scrapeNHL();
-        break;
-      default:
-        throw new Error(`Unsupported sport: ${config.sport}`);
-    }
-
-    const scrapeResult = await syncScrapedStandings(db, scrapedStandings, config.eventId, config.sport);
-    console.log(`  Playwright success: ${scrapeResult.synced} teams`);
-
-    const usersUpdated = await updateUserStandings(db, config.eventId);
-    console.log(`  Updated ${usersUpdated} users`);
-
-    return {
-      synced: scrapeResult.synced,
-      source: scrapeResult.source,
-      usersUpdated,
-    };
-  } catch (scrapeError) {
-    console.warn(`  Playwright failed: ${scrapeError instanceof Error ? scrapeError.message : String(scrapeError)}`);
-    console.log(`  Falling back to API-Sports...`);
-
-    try {
-      // Fall back to API-Sports
-      const client = new ApiSportsClient(apiKey);
-      const apiResult = await syncApiSportsStandings(db, client, config.eventId, config.sport, config.season);
-      console.log(`  API-Sports success: ${apiResult.synced} teams`);
-
-      const usersUpdated = await updateUserStandings(db, config.eventId);
-      console.log(`  Updated ${usersUpdated} users`);
-
-      return {
-        synced: apiResult.synced,
-        source: apiResult.source,
-        usersUpdated,
-      };
-    } catch (apiError) {
-      console.error(`  Both methods failed. API error: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
-      return {
-        synced: 0,
-        source: 'error',
-        usersUpdated: 0,
-        error: `Scraper failed: ${scrapeError instanceof Error ? scrapeError.message : String(scrapeError)}. API failed: ${apiError instanceof Error ? apiError.message : String(apiError)}`,
-      };
-    }
-  }
-}
-
-/**
  * Main sync handler
  */
 export default {
   /**
-   * Scheduled event handler (Cloudflare Cron)
-   * Runs twice daily: 9am ET and 11pm ET
+   * Scheduled event handler
    */
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<Response> {
     const results = [];
-    const apiKey = env.API_SPORTS_KEY;
 
     console.log('=== Standings Sync Started ===');
     console.log('Time:', new Date().toISOString());
-    console.log('Using API-Sports key:', apiKey ? 'configured' : 'default');
+    console.log('Source: sports-reference.com');
 
     for (const [key, config] of Object.entries(SPORT_CONFIGS)) {
-      console.log(`\nSyncing ${key} (${config.sport})...`);
-
       try {
-        const result = await syncSportWithFallback(env.DB, config, apiKey);
+        console.log(`\nSyncing ${key} (${config.sport})...`);
+
+        let standings;
+
+        // Scrape based on sport
+        switch (config.sport) {
+          case 'NBA':
+            standings = await scrapeNBAStandings();
+            break;
+          // Future: NFL, MLB, etc.
+          default:
+            throw new Error(`Unsupported sport: ${config.sport}`);
+        }
+
+        console.log(`  Found ${standings.length} teams`);
+
+        // Sync to database
+        const syncResult = await syncScrapedStandings(env.DB, standings, config.eventId, config.sport);
+        console.log(`  Synced ${syncResult.synced} teams from ${syncResult.source}`);
+
+        // Update user standings
+        const usersUpdated = await updateUserStandings(env.DB, config.eventId);
+        console.log(`  Updated ${usersUpdated} users`);
+
         results.push({
           event: key,
           sport: config.sport,
-          ...result,
+          synced: syncResult.synced,
+          source: syncResult.source,
+          usersUpdated,
         });
       } catch (error) {
         console.error(`Error syncing ${key}:`, error);
@@ -243,7 +184,6 @@ export default {
       return new Response(JSON.stringify({
         status: 'healthy',
         date: new Date().toISOString(),
-        apiKey: env.API_SPORTS_KEY ? 'configured' : 'default',
       }, null, 2), {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -254,7 +194,7 @@ export default {
         SELECT sport, team_abbr, wins, losses, sync_source, synced_at
         FROM espn_standings
         ORDER BY synced_at DESC
-        LIMIT 5
+        LIMIT 10
       `).all();
 
       return new Response(JSON.stringify({
@@ -276,7 +216,7 @@ export default {
         'GET /status': 'View latest sync status',
       },
       schedule: 'Runs twice daily: 9am ET, 11pm ET',
-      sources: 'Primary: Playwright (ESPN scraping), Backup: API-Sports.io',
+      sources: 'sports-reference.com (basketball-reference.com, pro-football-reference.com, etc.)',
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' },
     });
