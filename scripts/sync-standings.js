@@ -1,15 +1,17 @@
 /**
- * Hybrid Standings Sync Worker
- * Primary: API-Sports.io (free tier, 100 requests/day)
- * Backup: Playwright scraper for ESPN pages
+ * Standings Sync Worker
+ * Primary: Playwright scraper (reliable, scrapes ESPN pages)
+ * Backup: API-Sports.io (if available)
  *
- * URLs for backup scraper:
+ * URLs scraped:
  * - https://www.espn.com/nba/standings
  * - https://www.espn.com/nfl/standings
  * - https://www.espn.com/mlb/standings
  * - https://www.espn.com/nhl/standings
  * - https://www.espn.com/f1/standings
  * - https://www.espn.com/soccer/table/_/league/fifa.world
+ *
+ * Schedule: Twice daily (9am ET, 11pm ET)
  */
 
 import { ApiSportsClient, syncApiSportsStandings } from '../src/lib/api-sports.ts';
@@ -110,7 +112,7 @@ async function updateUserStandings(db: D1Database, eventId: string): Promise<num
 
 /**
  * Sync a single sport with fallback
- * Try API-Sports first, then Playwright scraper
+ * Try Playwright scraper first (reliable), then API-Sports (if needed)
  */
 async function syncSportWithFallback(
   db: D1Database,
@@ -118,64 +120,64 @@ async function syncSportWithFallback(
   apiKey?: string
 ): Promise<{ synced: number; source: string; usersUpdated: number; error?: string }> {
   try {
-    // Try API-Sports first
-    console.log(`  Trying API-Sports for ${config.sport}...`);
-    const client = new ApiSportsClient(apiKey);
-    const apiResult = await syncApiSportsStandings(db, client, config.eventId, config.sport, config.season);
-    console.log(`  API-Sports success: ${apiResult.synced} teams`);
+    // Use Playwright scraper as PRIMARY (it actually works)
+    console.log(`  Using Playwright scraper for ${config.sport}...`);
+    const scraper = new PlaywrightScraper();
+    let scrapedStandings: Awaited<ReturnType<typeof scraper.scrapeNBA>>;
+
+    switch (config.sport) {
+      case 'NBA':
+        scrapedStandings = await scraper.scrapeNBA();
+        break;
+      case 'NFL':
+        scrapedStandings = await scraper.scrapeNFL();
+        break;
+      case 'MLB':
+        scrapedStandings = await scraper.scrapeMLB();
+        break;
+      case 'NHL':
+        scrapedStandings = await scraper.scrapeNHL();
+        break;
+      default:
+        throw new Error(`Unsupported sport: ${config.sport}`);
+    }
+
+    const scrapeResult = await syncScrapedStandings(db, scrapedStandings, config.eventId, config.sport);
+    console.log(`  Playwright success: ${scrapeResult.synced} teams`);
 
     const usersUpdated = await updateUserStandings(db, config.eventId);
     console.log(`  Updated ${usersUpdated} users`);
 
     return {
-      synced: apiResult.synced,
-      source: apiResult.source,
+      synced: scrapeResult.synced,
+      source: scrapeResult.source,
       usersUpdated,
     };
-  } catch (apiError) {
-    console.warn(`  API-Sports failed: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
-    console.log(`  Falling back to Playwright scraper...`);
+  } catch (scrapeError) {
+    console.warn(`  Playwright failed: ${scrapeError instanceof Error ? scrapeError.message : String(scrapeError)}`);
+    console.log(`  Falling back to API-Sports...`);
 
     try {
-      // Fall back to Playwright scraper
-      const scraper = new PlaywrightScraper();
-      let scrapedStandings: Awaited<ReturnType<typeof scraper.scrapeNBA>>;
-
-      switch (config.sport) {
-        case 'NBA':
-          scrapedStandings = await scraper.scrapeNBA();
-          break;
-        case 'NFL':
-          scrapedStandings = await scraper.scrapeNFL();
-          break;
-        case 'MLB':
-          scrapedStandings = await scraper.scrapeMLB();
-          break;
-        case 'NHL':
-          scrapedStandings = await scraper.scrapeNHL();
-          break;
-        default:
-          throw new Error(`Unsupported sport for scraper: ${config.sport}`);
-      }
-
-      const scrapeResult = await syncScrapedStandings(db, scrapedStandings, config.eventId, config.sport);
-      console.log(`  Playwright success: ${scrapeResult.synced} teams`);
+      // Fall back to API-Sports
+      const client = new ApiSportsClient(apiKey);
+      const apiResult = await syncApiSportsStandings(db, client, config.eventId, config.sport, config.season);
+      console.log(`  API-Sports success: ${apiResult.synced} teams`);
 
       const usersUpdated = await updateUserStandings(db, config.eventId);
       console.log(`  Updated ${usersUpdated} users`);
 
       return {
-        synced: scrapeResult.synced,
-        source: scrapeResult.source,
+        synced: apiResult.synced,
+        source: apiResult.source,
         usersUpdated,
       };
-    } catch (scrapeError) {
-      console.error(`  Playwright also failed: ${scrapeError instanceof Error ? scrapeError.message : String(scrapeError)}`);
+    } catch (apiError) {
+      console.error(`  Both methods failed. API error: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
       return {
         synced: 0,
         source: 'error',
         usersUpdated: 0,
-        error: `API failed: ${apiError instanceof Error ? apiError.message : String(apiError)}. Scraper failed: ${scrapeError instanceof Error ? scrapeError.message : String(scrapeError)}`,
+        error: `Scraper failed: ${scrapeError instanceof Error ? scrapeError.message : String(scrapeError)}. API failed: ${apiError instanceof Error ? apiError.message : String(apiError)}`,
       };
     }
   }
@@ -274,7 +276,7 @@ export default {
         'GET /status': 'View latest sync status',
       },
       schedule: 'Runs twice daily: 9am ET, 11pm ET',
-      sources: 'Primary: API-Sports.io, Backup: Playwright (ESPN)',
+      sources: 'Primary: Playwright (ESPN scraping), Backup: API-Sports.io',
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' },
     });
