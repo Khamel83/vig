@@ -1,0 +1,3 @@
+[submodule "lib/Public-ESPN-API"]
+	path = lib/Public-ESPN-API
+	url = https://github.com/pseudo-r/Public-ESPN-API

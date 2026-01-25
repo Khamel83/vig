@@ -1,0 +1,20 @@
+name = "vig-standings"
+main = "scripts/sync-standings.js"
+compatibility_date = "2024-01-01"
+
+# D1 Database (same as main vig)
+[[d1_databases]]
+binding = "DB"
+database_name = "vig-db"
+database_id = "abd188fa-f8a2-4f4e-8802-4ac89e50bd37"
+
+# KV Namespace (for caching, if needed)
+[[kv_namespaces]]
+binding = "KV"
+id = "vig-kv"
+
+# Cron triggers - sync standings hourly
+# The sync-standings.js script internally checks if it should sync based on game times
+# So we can run hourly and let the script decide if it's time to sync
+[triggers]
+crons = ["0 * * * *"]  # Every hour at :00

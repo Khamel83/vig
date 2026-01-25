@@ -27,14 +27,14 @@ export const GET: APIRoute = async ({ params, locals }) => {
       eventStandings = await standings.listByEvent(DB, event.id);
     }
 
-    // Get all selections with user info for completed events (read-only display)
+    // Get all selections with user info for active and completed events
     let eventSelections: Array<{
       id: string;
       option_id: string;
       user_id: string;
       user_name: string;
     }> = [];
-    if (event.status === 'completed') {
+    if (event.status === 'active' || event.status === 'completed') {
       const selectionsStmt = DB.prepare(`
         SELECT s.id, s.option_id, s.user_id, u.name as user_name
         FROM selections s
@@ -50,29 +50,64 @@ export const GET: APIRoute = async ({ params, locals }) => {
       eventSelections = selectionsResult.results;
     }
 
-    // Get team-level standings (wins/losses per team)
-    const teamStandingsStmt = DB.prepare(`
+    // Get team-level standings from ESPN (preferred) or games (fallback)
+    // Try ESPN standings first for accurate, up-to-date records
+    const espnTeamStandingsStmt = DB.prepare(`
       SELECT
-        o.id as option_id,
-        COUNT(CASE WHEN g.status = 'final' AND (
-          (g.home_team_id = o.id AND g.home_score > g.away_score) OR
-          (g.away_team_id = o.id AND g.away_score > g.home_score)
-        ) THEN 1 END) as wins,
-        COUNT(CASE WHEN g.status = 'final' AND (
-          (g.home_team_id = o.id AND g.home_score < g.away_score) OR
-          (g.away_team_id = o.id AND g.away_score < g.home_score)
-        ) THEN 1 END) as losses
-      FROM options o
-      LEFT JOIN games g ON (g.home_team_id = o.id OR g.away_team_id = o.id) AND g.event_id = o.event_id
-      WHERE o.event_id = ?
-      GROUP BY o.id
+        team_id as option_id,
+        team_abbr,
+        wins,
+        losses,
+        sync_source,
+        synced_at
+      FROM espn_standings
+      WHERE event_id = ?
     `);
-    const teamStandingsResult = await teamStandingsStmt.bind(event.id).all<{
+    const espnTeamStandingsResult = await espnTeamStandingsStmt.bind(event.id).all<{
       option_id: string;
+      team_abbr: string;
       wins: number;
       losses: number;
+      sync_source: string;
+      synced_at: number;
     }>();
-    const teamStandings = new Map(teamStandingsResult.results.map(t => [t.option_id, { wins: t.wins, losses: t.losses }]));
+
+    let teamStandings: Map<string, { wins: number; losses: number; source: string }>;
+
+    if (espnTeamStandingsResult.results.length > 0) {
+      // Use ESPN standings (preferred)
+      teamStandings = new Map(espnTeamStandingsResult.results.map(t => [
+        t.option_id,
+        { wins: t.wins, losses: t.losses, source: t.sync_source }
+      ]));
+    } else {
+      // Fallback to games table if ESPN standings not available
+      const teamStandingsStmt = DB.prepare(`
+        SELECT
+          o.id as option_id,
+          COUNT(CASE WHEN g.status = 'final' AND (
+            (g.home_team_id = o.id AND g.home_score > g.away_score) OR
+            (g.away_team_id = o.id AND g.away_score > g.home_score)
+          ) THEN 1 END) as wins,
+          COUNT(CASE WHEN g.status = 'final' AND (
+            (g.home_team_id = o.id AND g.home_score < g.away_score) OR
+            (g.away_team_id = o.id AND g.away_score < g.home_score)
+          ) THEN 1 END) as losses
+        FROM options o
+        LEFT JOIN games g ON (g.home_team_id = o.id OR g.away_team_id = o.id) AND g.event_id = o.event_id
+        WHERE o.event_id = ?
+        GROUP BY o.id
+      `);
+      const teamStandingsResult = await teamStandingsStmt.bind(event.id).all<{
+        option_id: string;
+        wins: number;
+        losses: number;
+      }>();
+      teamStandings = new Map(teamStandingsResult.results.map(t => [
+        t.option_id,
+        { wins: t.wins, losses: t.losses, source: 'games' }
+      ]));
+    }
 
     return jsonResponse({
       event,
