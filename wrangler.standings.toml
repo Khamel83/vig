@@ -8,10 +8,15 @@ binding = "DB"
 database_name = "vig-db"
 database_id = "abd188fa-f8a2-4f4e-8802-4ac89e50bd37"
 
-# KV Namespace (for caching, if needed)
+# KV Namespace (for caching)
 [[kv_namespaces]]
 binding = "KV"
 id = "vig-kv"
+
+# Environment variables
+[vars]
+# API_SPORTS_KEY is set in Cloudflare dashboard (not here for security)
+# Default key is in code as fallback
 
 # Cron triggers - sync standings twice daily during season
 # - 9am ET: Morning update
