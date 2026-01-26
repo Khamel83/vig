@@ -1,0 +1,465 @@
+---
+/**
+ * Draft Room - Live draft interface for async snake drafts
+ */
+import Layout from '../../layouts/Layout.astro';
+import { validateToken } from '../../lib/auth';
+import { drafts } from '../../lib/drafts';
+
+// Get draft ID from URL
+const draftId = Astro.params.id;
+
+// Check authentication
+const token = Astro.cookies.get('vig_session')?.value;
+let currentUser = null;
+
+if (token) {
+  currentUser = await validateToken(
+    Astro.locals.runtime.env.DB,
+    Astro.locals.runtime.env.JWT_SECRET || '',
+    token
+  );
+}
+
+// Redirect if not authenticated
+if (!currentUser) {
+  return Astro.redirect('/login');
+}
+
+// Get draft details
+const draft = await drafts.getById(Astro.locals.runtime.env.DB, draftId);
+
+// Redirect if draft doesn't exist
+if (!draft) {
+  return Astro.redirect('/dashboard');
+}
+
+// Check if user is a participant
+const isParticipant = draft.draft_order.includes(currentUser.id);
+
+if (!isParticipant && !currentUser.is_admin) {
+  return Astro.redirect('/dashboard');
+}
+---
+
+<Layout title={`Draft - ${draft.event_id}`}>
+  <div class="min-h-screen bg-slate-900 text-white">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+      <!-- Draft Header -->
+      <div class="mb-6">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <h1 class="text-3xl font-bold mb-2">Draft Room</h1>
+            <p class="text-slate-400">Event: {draft.event_id}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm text-slate-400">Status</p>
+            <p class="text-xl font-bold capitalize" id="draft-status">
+              <span class={`px-3 py-1 rounded-lg ${
+                draft.status === 'in_progress' ? 'bg-green-900/30 text-green-400' :
+                draft.status === 'completed' ? 'bg-blue-900/30 text-blue-400' :
+                draft.status === 'paused' ? 'bg-yellow-900/30 text-yellow-400' :
+                'bg-slate-700 text-slate-300'
+              }`}>
+                {draft.status.replace('_', ' ')}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Draft Progress -->
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div class="flex justify-between text-sm mb-2">
+            <span>Pick {draft.current_pick} of {draft.total_picks}</span>
+            <span>Round {draft.current_round} of {draft.total_rounds}</span>
+          </div>
+          <div class="w-full bg-slate-700 rounded-full h-2">
+            <div
+              id="progress-bar"
+              class="bg-vig-500 h-2 rounded-full transition-all duration-300"
+              style="width: {(draft.current_pick / draft.total_picks * 100).toFixed(1)}%"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: Current Pick Info -->
+        <div class="lg:col-span-2 space-y-6">
+          <!-- Current Picker -->
+          <div id="current-picker-section" class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h2 class="text-xl font-semibold mb-4">Current Pick</h2>
+            <div id="current-picker-content" class="text-center py-8">
+              <div class="animate-pulse text-slate-400">Loading...</div>
+            </div>
+          </div>
+
+          <!-- Make Pick Section (if current user) -->
+          <div id="make-pick-section" class="hidden bg-slate-800 rounded-lg p-6 border border-vig-500">
+            <h2 class="text-xl font-semibold mb-4">Your Pick!</h2>
+            <p class="text-slate-400 mb-4">Select an option from the list below:</p>
+            <div id="available-options" class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+              <!-- Options populated by JS -->
+            </div>
+          </div>
+
+          <!-- Draft Board -->
+          <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h2 class="text-xl font-semibold mb-4">Draft Board</h2>
+            <div id="draft-board" class="overflow-x-auto">
+              <!-- Draft board populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: My Picks & Timer -->
+        <div class="space-y-6">
+          <!-- Timer -->
+          <div id="timer-section" class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h2 class="text-lg font-semibold mb-2">Time Remaining</h2>
+            <div id="timer-display" class="text-4xl font-mono font-bold text-vig-400 text-center py-4">
+              --:--
+            </div>
+            <p id="timer-status" class="text-sm text-slate-400 text-center"></p>
+          </div>
+
+          <!-- My Picks -->
+          <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h2 class="text-lg font-semibold mb-4">My Picks</h2>
+            <div id="my-picks" class="space-y-2">
+              <!-- Picks populated by JS -->
+            </div>
+          </div>
+
+          <!-- Draft Actions -->
+          {draft.status === 'pending' && currentUser.is_admin && (
+            <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+              <h2 class="text-lg font-semibold mb-4">Draft Actions</h2>
+              <button
+                onclick="startDraft()"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Start Draft
+              </button>
+            </div>
+          )}
+
+          {draft.status === 'in_progress' && currentUser.is_admin && (
+            <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+              <h2 class="text-lg font-semibold mb-4">Draft Actions</h2>
+              <button
+                id="pause-resume-btn"
+                onclick="togglePauseResume()"
+                class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-lg transition-colors mb-2"
+              >
+                Pause Draft
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ draftId, currentUser }}>
+    const currentUserId = String.raw`{currentUser.id}`;
+    const isAdmin = {currentUser.is_admin ? 'true' : 'false'} === 'true';
+
+    let draftState = null;
+    let pollInterval = null;
+    let timerInterval = null;
+
+    // Load initial draft state
+    async function loadDraftState() {
+      try {
+        const response = await fetch(`/api/drafts/${draftId}/status`);
+        if (!response.ok) {
+          console.error('Failed to load draft state');
+          return;
+        }
+
+        const data = await response.json();
+        if (!data.success) {
+          console.error('Failed to load draft state:', data.error);
+          return;
+        }
+
+        draftState = data;
+        renderDraftState(data);
+      } catch (error) {
+        console.error('Error loading draft state:', error);
+      }
+    }
+
+    function renderDraftState(data) {
+      // Update status badge
+      const statusBadge = document.getElementById('draft-status');
+      statusBadge.innerHTML = `<span class="px-3 py-1 rounded-lg ${
+        data.draft.status === 'in_progress' ? 'bg-green-900/30 text-green-400' :
+        data.draft.status === 'completed' ? 'bg-blue-900/30 text-blue-400' :
+        data.draft.status === 'paused' ? 'bg-yellow-900/30 text-yellow-400' :
+        'bg-slate-700 text-slate-300'
+      }">${data.draft.status.replace('_', ' ')}</span>`;
+
+      // Update progress bar
+      document.getElementById('progress-bar').style.width =
+        `${(data.draft.current_pick / data.draft.total_picks * 100).toFixed(1)}%`;
+
+      // Update current picker section
+      const isMyTurn = data.draft.current_picker === currentUserId;
+      const currentPickerContent = document.getElementById('current-picker-content');
+
+      if (data.draft.status === 'completed') {
+        currentPickerContent.innerHTML = `
+          <div class="text-green-400 text-6xl mb-4">✓</div>
+          <p class="text-xl font-semibold">Draft Complete!</p>
+          <p class="text-slate-400">All {data.draft.total_picks} picks have been made.</p>
+        `;
+      } else if (data.draft.status === 'paused') {
+        currentPickerContent.innerHTML = `
+          <div class="text-yellow-400 text-6xl mb-4">⏸</div>
+          <p class="text-xl font-semibold">Draft Paused</p>
+          <p class="text-slate-400">Waiting for admin to resume...</p>
+        `;
+      } else if (!data.draft.current_picker) {
+        currentPickerContent.innerHTML = `
+          <div class="text-slate-400 text-6xl mb-4">⏳</div>
+          <p class="text-xl font-semibold">Draft Not Started</p>
+          <p class="text-slate-400">Waiting for draft to begin...</p>
+        `;
+      } else if (isMyTurn) {
+        currentPickerContent.innerHTML = `
+          <div class="text-green-400 text-6xl mb-4">★</div>
+          <p class="text-xl font-semibold text-green-400">It's Your Turn!</p>
+          <p class="text-slate-400">Make your selection below</p>
+        `;
+      } else {
+        currentPickerContent.innerHTML = `
+          <p class="text-slate-400">Current picker:</p>
+          <p class="text-2xl font-bold">Waiting...</p>
+        `;
+      }
+
+      // Update make pick section
+      const makePickSection = document.getElementById('make-pick-section');
+      if (isMyTurn && data.draft.status === 'in_progress') {
+        makePickSection.classList.remove('hidden');
+        renderAvailableOptions(data.available_options);
+      } else {
+        makePickSection.classList.add('hidden');
+      }
+
+      // Update timer
+      updateTimer(data.draft.remaining_time, data.draft.is_timed_out);
+
+      // Update draft board
+      renderDraftBoard(data.draft, data.picks);
+
+      // Update my picks
+      renderMyPicks(data.picks);
+
+      // Update pause/resume button
+      const pauseBtn = document.getElementById('pause-resume-btn');
+      if (pauseBtn) {
+        pauseBtn.textContent = data.draft.status === 'paused' ? 'Resume Draft' : 'Pause Draft';
+      }
+    }
+
+    function renderAvailableOptions(options) {
+      const container = document.getElementById('available-options');
+      container.innerHTML = options.map(option => `
+        <button
+          onclick="makePick('${option.id}')"
+          class="bg-slate-700 hover:bg-vig-600 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm"
+        >
+          ${option.abbreviation || option.name}
+        </button>
+      `).join('');
+    }
+
+    function renderDraftBoard(draft, picks) {
+      const container = document.getElementById('draft-board');
+
+      // Create a grid showing picks by round
+      const rounds = draft.total_rounds;
+      const numParticipants = draft.draft_order.length;
+
+      let html = '<table class="w-full text-sm">';
+      html += '<thead><tr><th class="text-left py-2 px-3">Round</th>';
+
+      for (let i = 1; i <= numParticipants; i++) {
+        html += `<th class="py-2 px-3">Pick ${i}</th>`;
+      }
+      html += '</tr></thead><tbody>';
+
+      for (let round = 1; round <= rounds; round++) {
+        html += `<tr><td class="font-bold py-2 px-3 bg-slate-700">${round}</td>`;
+
+        for (let pickInRound = 1; pickInRound <= numParticipants; pickInRound++) {
+          const pickNumber = (round - 1) * numParticipants + pickInRound;
+          const pick = picks.find(p => p.round === round && p.pick_number === pickNumber);
+
+          if (pick) {
+            html += `<td class="py-2 px-3 ${pick.user?.id === currentUserId ? 'bg-vig-900/30' : ''}" title="${pick.user?.name || 'Unknown'}">
+              <div class="font-medium truncate">${pick.option?.name || 'Skipped'}</div>
+              <div class="text-xs text-slate-500">${pick.user?.name?.split(' ')[0] || '?'}</div>
+            </td>`;
+          } else if (pickNumber <= draft.current_pick) {
+            html += '<td class="py-2 px-3 text-slate-500">Skipped</td>';
+          } else {
+            html += '<td class="py-2 px-3 text-slate-600">-</td>';
+          }
+        }
+
+        html += '</tr>';
+      }
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function renderMyPicks(picks) {
+      const container = document.getElementById('my-picks');
+      const myPicks = picks.filter(p => p.user?.id === currentUserId);
+
+      if (myPicks.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 text-center py-4">No picks yet</p>';
+        return;
+      }
+
+      container.innerHTML = myPicks.map(pick => `
+        <div class="bg-slate-700 rounded p-2">
+          <p class="font-medium text-sm">${pick.option?.name || 'Skipped'}</p>
+          <p class="text-xs text-slate-400">Round ${pick.round}, Pick ${pick.pick_number}</p>
+        </div>
+      `).join('');
+    }
+
+    function updateTimer(remainingTime, isTimedOut) {
+      const timerDisplay = document.getElementById('timer-display');
+      const timerStatus = document.getElementById('timer-status');
+
+      if (isTimedOut) {
+        timerDisplay.textContent = '0:00';
+        timerDisplay.classList.remove('text-vig-400');
+        timerDisplay.classList.add('text-red-400');
+        timerStatus.textContent = 'Time expired!';
+      } else if (remainingTime > 0) {
+        const hours = Math.floor(remainingTime / 3600);
+        const minutes = Math.floor((remainingTime % 3600) / 60);
+        const seconds = Math.floor(remainingTime % 60);
+
+        if (hours > 0) {
+          timerDisplay.textContent = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        } else {
+          timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        timerDisplay.classList.remove('text-red-400');
+        timerDisplay.classList.add('text-vig-400');
+        timerStatus.textContent = 'until auto-skip';
+      } else {
+        timerDisplay.textContent = '--:--';
+        timerStatus.textContent = '';
+      }
+    }
+
+    async function makePick(optionId) {
+      if (!confirm('Are you sure you want to select this option?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/drafts/${draftId}/pick`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ option_id: optionId }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          alert(result.error || 'Failed to make pick');
+          return;
+        }
+
+        // Reload draft state
+        await loadDraftState();
+      } catch (error) {
+        console.error('Error making pick:', error);
+        alert('Failed to make pick');
+      }
+    }
+
+    async function startDraft() {
+      if (!confirm('Start the draft? This cannot be undone.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/drafts/${draftId}/start`, {
+          method: 'POST',
+        });
+
+        if (response.ok) {
+          await loadDraftState();
+        } else {
+          const result = await response.json();
+          alert(result.error || 'Failed to start draft');
+        }
+      } catch (error) {
+        console.error('Error starting draft:', error);
+        alert('Failed to start draft');
+      }
+    }
+
+    async function togglePauseResume() {
+      const isPaused = draftState?.draft?.status === 'paused';
+      const action = isPaused ? 'resume' : 'pause';
+
+      if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} the draft?`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/drafts/${draftId}/${action}`, {
+          method: 'POST',
+        });
+
+        if (response.ok) {
+          await loadDraftState();
+        } else {
+          const result = await response.json();
+          alert(result.error || `Failed to ${action} draft`);
+        }
+      } catch (error) {
+        console.error(`Error ${action}ing draft:`, error);
+        alert(`Failed to ${action} draft`);
+      }
+    }
+
+    // Poll for updates every 5 seconds
+    function startPolling() {
+      loadDraftState();
+      pollInterval = setInterval(loadDraftState, 5000);
+
+      // Update timer every second
+      timerInterval = setInterval(() => {
+        if (draftState?.draft?.remaining_time > 0) {
+          draftState.draft.remaining_time--;
+          updateTimer(draftState.draft.remaining_time, false);
+        }
+      }, 1000);
+    }
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', () => {
+      clearInterval(pollInterval);
+      clearInterval(timerInterval);
+    });
+
+    // Start polling
+    startPolling();
+  </script>
+</Layout>

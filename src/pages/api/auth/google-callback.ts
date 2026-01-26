@@ -7,7 +7,7 @@ import type { Context } from 'astro';
 
 export async function GET(context: Context): Promise<Response> {
   const { code, state, error } = context.locals.url.searchParams;
-  const { DB, KV, JWT_SECRET, GOOGLE_OAUTH_CLIENT_ID } = context.locals.runtime.env;
+  const { DB, KV, JWT_SECRET, SITE_URL } = context.locals.runtime.env;
 
   // Check for errors from Google
   if (error) {
@@ -39,7 +39,7 @@ export async function GET(context: Context): Promise<Response> {
     await KV.delete(`oauth_state:${state}`);
 
     // Call the OAuth callback handler
-    const response = await fetch(`${context.locals.runtime.env.SITE_URL}/api/auth/google-complete`, {
+    const response = await fetch(`${SITE_URL}/api/auth/google-complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -58,12 +58,24 @@ export async function GET(context: Context): Promise<Response> {
       });
     }
 
-    // Set session cookie
-    return new Response(JSON.stringify({ success: true, user: result.user }), {
-      status: 200,
+    // Determine redirect URL based on invite code
+    const inviteCode = stateData.user_data?.invite_code;
+    let redirectUrl = '/dashboard';
+
+    if (inviteCode) {
+      // Store invite code in session for later use
+      await KV.put(`invite_code:${result.user.id}`, inviteCode, {
+        expirationTtl: 24 * 60 * 60, // 24 hours
+      });
+      redirectUrl = `/join?code=${encodeURIComponent(inviteCode)}`;
+    }
+
+    // Set session cookie and redirect
+    return new Response(null, {
+      status: 302,
       headers: {
-        'Content-Type': 'application/json',
         'Set-Cookie': `vig_session=${result.token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`, // 30 days
+        'Location': redirectUrl,
       },
     });
   } catch (error) {

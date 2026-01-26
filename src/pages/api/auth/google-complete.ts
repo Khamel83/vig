@@ -7,7 +7,7 @@ import { handleGoogleOAuthCallback } from '@/lib/oauth-google';
 import type { Context } from 'astro';
 
 export async function POST(context: Context): Promise<Response> {
-  const { DB, KV, JWT_SECRET } = context.locals.runtime.env;
+  const { DB, KV, JWT_SECRET, GOOGLE_OAUTH_CLIENT_ID, SITE_URL } = context.locals.runtime.env;
 
   try {
     const { code, state, code_verifier } = await context.locals.request.json();
@@ -19,6 +19,9 @@ export async function POST(context: Context): Promise<Response> {
       });
     }
 
+    const clientId = GOOGLE_OAUTH_CLIENT_ID;
+    const redirectUri = `${SITE_URL}/api/auth/google-callback`;
+
     // Handle OAuth callback
     const result = await handleGoogleOAuthCallback(
       code,
@@ -26,7 +29,9 @@ export async function POST(context: Context): Promise<Response> {
       code_verifier,
       DB,
       KV,
-      JWT_SECRET
+      JWT_SECRET,
+      clientId,
+      redirectUri
     );
 
     if (!result.success) {

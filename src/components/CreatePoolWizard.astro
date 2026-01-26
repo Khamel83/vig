@@ -1,8 +1,34 @@
 ---
+/**
+ * CreatePoolWizard - Component for creating pools from templates
+ */
 import Layout from '../layouts/Layout.astro';
-import type { Context } from 'astro';
 import { poolTemplates } from '../lib/pools';
 import { validateToken } from '../lib/auth';
+
+// Check authentication
+const token = Astro.cookies.get('vig_session')?.value;
+let currentUser = null;
+
+if (token) {
+  currentUser = await validateToken(
+    Astro.locals.runtime.env.DB,
+    Astro.locals.runtime.env.JWT_SECRET || '',
+    token
+  );
+}
+
+// Redirect if not authenticated
+if (!currentUser) {
+  return Astro.redirect('/login');
+}
+
+// Load templates server-side
+const templates = await poolTemplates.getPublic(Astro.locals.runtime.env.DB);
+
+// Form data passed from previous step
+const currentStep = 1;
+const selectedTemplate = null;
 ---
 
 <Layout title="Create Pool">
@@ -13,75 +39,82 @@ import { validateToken } from '../lib/auth';
       <!-- Step Indicator -->
       <div class="flex items-center justify-center mb-8">
         <div class="flex space-x-4">
-          <div class={`flex items-center ${currentStep >= 1 ? 'text-vig-400' : 'text-slate-600'}`}>
-            <div class={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${currentStep >= 1 ? 'bg-vig-400 text-slate-900 border-vig-400' : 'border-slate-600'}`}>
+          <div id="step-1-indicator" class="flex items-center text-vig-400">
+            <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center bg-vig-400 text-slate-900 border-vig-400">
               1
             </div>
             <span class="ml-2">Select Template</span>
           </div>
           <div class="w-8 h-0.5 bg-slate-600"></div>
-          <div class={`flex items-center ${currentStep >= 2 ? 'text-vig-400' : 'text-slate-600'}`}>
-            <div class={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${currentStep >= 2 ? 'bg-vig-400 text-slate-900 border-vig-400' : 'border-slate-600'}`}>
+          <div id="step-2-indicator" class="flex items-center text-slate-600">
+            <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center border-slate-600">
               2
             </div>
             <span class="ml-2">Pool Details</span>
           </div>
           <div class="w-8 h-0.5 bg-slate-600"></div>
-          <div class={`flex items-center ${currentStep >= 3 ? 'text-vig-400' : 'text-slate-600'}`}>
-            <div class={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${currentStep >= 3 ? 'bg-vig-400 text-slate-900 border-vig-400' : 'border-slate-600'}`}>
+          <div id="step-3-indicator" class="flex items-center text-slate-600">
+            <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center border-slate-600">
               3
             </div>
-            <span class="ml-2">Payment Settings</span>
+            <span class="ml-2">Confirm</span>
           </div>
         </div>
       </div>
 
+      <!-- Error Message -->
+      <div id="error-message" class="hidden bg-red-900/20 border border-red-800 rounded-lg p-4 mb-6">
+        <p class="text-red-400 text-sm"></p>
+      </div>
+
       <form id="create-pool-form" class="space-y-6">
         <!-- Step 1: Select Template -->
-        <div id="step-1" class={currentStep === 1 ? '' : 'hidden'}>
+        <div id="step-1" class="">
           <h2 class="text-xl font-semibold mb-4">Choose a Template</h2>
           <p class="text-slate-400 mb-6">Select a template to create your pool</p>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div id="templates-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map(template => (
               <div
-                class={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-                  selectedTemplate?.id === template.id ? 'border-vig-400 bg-slate-800' : 'border-slate-700 hover:border-slate-600'
-                }`}
-                onclick="selectTemplate('${template.id}')"
+                id={`template-${template.id}`}
+                class="template-card border-2 rounded-lg p-4 cursor-pointer transition-colors border-slate-700 hover:border-slate-600"
+                data-template-id={template.id}
               >
                 <h3 class="font-semibold text-white mb-2">{template.name}</h3>
                 <p class="text-sm text-slate-400 mb-3">{template.description}</p>
-                <div class="flex justify-between text-sm">
-                  <span class="text-slate-500">Sport:</span>
-                  <span class="text-slate-300 capitalize">{template.sport}</span>
-                </div>
-                <div class="flex justify-between text-sm">
-                  <span class="text-slate-500">Type:</span>
-                  <span class="text-slate-300">{template.pool_type}</span>
-                </div>
-                {template.default_entry_fee_cents && (
-                  <div class="flex justify-between text-sm mt-2">
-                    <span class="text-slate-500">Entry Fee:</span>
-                    <span class="text-slate-300">${(template.default_entry_fee_cents / 100).toFixed(2)}</span>
+                <div class="space-y-1 text-sm">
+                  <div class="flex justify-between">
+                    <span class="text-slate-500">Sport:</span>
+                    <span class="text-slate-300 capitalize">{template.sport}</span>
                   </div>
-                )}
+                  <div class="flex justify-between">
+                    <span class="text-slate-500">Type:</span>
+                    <span class="text-slate-300">{template.pool_type}</span>
+                  </div>
+                  {template.default_entry_fee_cents && (
+                    <div class="flex justify-between">
+                      <span class="text-slate-500">Entry Fee:</span>
+                      <span class="text-slate-300">${(template.default_entry_fee_cents / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
 
         <!-- Step 2: Pool Details -->
-        <div id="step-2" class={currentStep === 2 ? '' : 'hidden'}>
+        <div id="step-2" class="hidden">
           <h2 class="text-xl font-semibold mb-4">Pool Details</h2>
           <p class="text-slate-400 mb-6">Basic information about your pool</p>
 
           <div class="space-y-4">
             <div>
-              <label for="pool-name" class="block text-sm font-medium mb-2">Pool Name</label>
+              <label for="pool-name" class="block text-sm font-medium mb-2">Pool Name *</label>
               <input
                 type="text"
                 id="pool-name"
+                name="pool-name"
                 placeholder="My Awesome NBA Pool"
                 class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
                 required
@@ -89,117 +122,95 @@ import { validateToken } from '../lib/auth';
             </div>
 
             <div>
-              <label for="max-uses" class="block text-sm font-medium mb-2">Max Participants</label>
+              <label for="max-uses" class="block text-sm font-medium mb-2">Max Participants (2-100)</label>
               <input
                 type="number"
                 id="max-uses"
+                name="max-uses"
                 min="2"
                 max="100"
                 value="10"
                 class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
+                required
               />
             </div>
 
             <div>
-              <label for="max-selection" class="block text-sm font-medium mb-2">
-                Max Selections per User ({selectedTemplate?.config?.max_selections || '15'})
-              </label>
+              <label for="entry-fee" class="block text-sm font-medium mb-2">Entry Fee (USD) *</label>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                <input
+                  type="number"
+                  id="entry-fee"
+                  name="entry-fee"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  value="50"
+                  class="w-full bg-slate-700 border border-slate-600 rounded-lg pl-8 pr-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label for="payment-deadline" class="block text-sm font-medium mb-2">Payment Deadline</label>
               <input
-                type="number"
-                id="max-selection"
-                min="1"
-                max="50"
-                value={selectedTemplate?.config?.max_selections || 15}
+                type="datetime-local"
+                id="payment-deadline"
+                name="payment-deadline"
                 class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
-                readonly
               />
             </div>
           </div>
         </div>
 
-        <!-- Step 3: Payment Settings -->
-        <div id="step-3" class={currentStep === 3 ? '' : 'hidden'}>
-          <h2 class="text-xl font-semibold mb-4">Payment Settings</h2>
-          <p class="text-slate-400 mb-6">Configure entry fees and payment methods</p>
+        <!-- Step 3: Confirm -->
+        <div id="step-3" class="hidden">
+          <h2 class="text-xl font-semibold mb-4">Confirm Pool Creation</h2>
+          <p class="text-slate-400 mb-6">Review your pool settings before creating</p>
 
-          <div class="space-y-4">
-            <div>
-              <label for="entry-fee" class="block text-sm font-medium mb-2">
-                Entry Fee (${(selectedTemplate?.default_entry_fee_cents || 5000) / 100})
-              </label>
-              <input
-                type="number"
-                id="entry-fee"
-                min="100"
-                max="10000"
-                step="100"
-                value={selectedTemplate?.default_entry_fee_cents || 5000}
-                class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label for="payment-deadline" class="block text-sm font-medium mb-2">
-                Payment Deadline
-              </label>
-              <input
-                type="datetime-local"
-                id="payment-deadline"
-                class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label for="venmo-handle" class="block text-sm font-medium mb-2">
-                Venmo Handle (optional)
-              </label>
-              <input
-                type="text"
-                id="venmo-handle"
-                placeholder="@yourusername"
-                class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label for="cashapp-handle" class="block text-sm font-medium mb-2">
-                CashApp Handle (optional)
-              </label>
-              <input
-                type="text"
-                id="cashapp-handle"
-                placeholder="$yourhandle"
-                class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 focus:border-transparent"
-              />
+          <div class="bg-slate-800 rounded-lg p-6">
+            <h3 class="font-semibold text-white mb-4">Pool Summary</h3>
+            <div id="pool-summary" class="space-y-3 text-sm">
+              <!-- Summary populated by JavaScript -->
             </div>
           </div>
 
-          <div class="bg-slate-800 rounded-lg p-4 mt-6">
-            <h3 class="font-semibold text-white mb-2">Pool Summary</h3>
-            <div id="pool-summary" class="text-sm text-slate-300 space-y-1">
-              <!-- Summary will be populated by JavaScript -->
+          <div id="invite-code-display" class="hidden mt-6 bg-green-900/20 border border-green-800 rounded-lg p-6 text-center">
+            <h3 class="font-semibold text-white mb-2">Pool Created Successfully!</h3>
+            <p class="text-slate-300 mb-4">Share this invite code with players:</p>
+            <div class="bg-slate-900 rounded-lg p-4">
+              <p id="invite-code" class="text-3xl font-mono font-bold text-green-400"></p>
+            </div>
+            <button
+              onclick="copyInviteCode()"
+              class="mt-4 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+            >
+              Copy Invite Code
+            </button>
+            <div class="mt-4">
+              <a id="manage-pool-link" href="" class="text-vig-400 hover:underline">Manage Pool →</a>
             </div>
           </div>
         </div>
 
         <!-- Navigation Buttons -->
-        <div class="flex justify-between pt-6">
+        <div class="flex justify-between pt-6" id="nav-buttons">
           <button
             type="button"
             id="prev-btn"
-            class="bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-6 rounded-lg transition-colors hidden"
-            onclick="previousStep()"
+            class="hidden bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
           >
             ← Back
           </button>
 
-          <div></div>
+          <div class="flex-1"></div>
 
           <button
             type="button"
             id="next-btn"
             class="bg-vig-600 hover:bg-vig-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
-            onclick="nextStep()"
           >
             Next →
           </button>
@@ -207,7 +218,7 @@ import { validateToken } from '../lib/auth';
           <button
             type="submit"
             id="create-btn"
-            class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors hidden"
+            class="hidden bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
           >
             Create Pool
           </button>
@@ -215,135 +226,243 @@ import { validateToken } from '../lib/auth';
       </form>
     </div>
   </div>
-</Layout>
 
-<script>
-  let currentStep = 1;
-  let selectedTemplate = null;
-  let templates = [];
+  <script>
+    // Templates data from server
+    const templatesData = {templates.map(t => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      sport: t.sport,
+      pool_type: t.pool_type,
+      config: t.config,
+      default_entry_fee_cents: t.default_entry_fee_cents,
+    }))};
 
-  // Load templates on page load
-  document.addEventListener('DOMContentLoaded', async () => {
-    try {
-      const response = await fetch('/api/templates');
-      const data = await response.json();
-      templates = data;
-      renderTemplates();
-    } catch (error) {
-      console.error('Error loading templates:', error);
-    }
-  });
+    let currentStep = 1;
+    let selectedTemplate = null;
+    let createdPoolData = null;
 
-  function selectTemplate(templateId) {
-    selectedTemplate = templates.find(t => t.id === templateId);
-    renderTemplates();
-    nextStep();
-  }
+    // Template selection
+    document.getElementById('templates-container')?.addEventListener('click', (e) => {
+      const card = e.target.closest('.template-card');
+      if (card && currentStep === 1) {
+        const templateId = card.dataset.templateId;
+        selectTemplate(templateId);
+      }
+    });
 
-  function renderTemplates() {
-    const templateContainer = document.getElementById('step-1').querySelector('.grid');
-    templateContainer.innerHTML = templates.map(template => `
-      <div class="border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-        selectedTemplate?.id === template.id ? 'border-vig-400 bg-slate-800' : 'border-slate-700 hover:border-slate-600'
-      }" onclick="selectTemplate('${template.id}')">
-        <h3 class="font-semibold text-white mb-2">${template.name}</h3>
-        <p class="text-sm text-slate-400 mb-3">${template.description}</p>
-        <div class="flex justify-between text-sm">
-          <span class="text-slate-500">Sport:</span>
-          <span class="text-slate-300 capitalize">${template.sport}</span>
-        </div>
-        <div class="flex justify-between text-sm">
-          <span class="text-slate-500">Type:</span>
-          <span class="text-slate-300">${template.pool_type}</span>
-        </div>
-        ${template.default_entry_fee_cents ? `
-          <div class="flex justify-between text-sm mt-2">
-            <span class="text-slate-500">Entry Fee:</span>
-            <span class="text-slate-300">$${(template.default_entry_fee_cents / 100).toFixed(2)}</span>
-          </div>
-        ` : ''}
-      </div>
-    `).join('');
-  }
+    function selectTemplate(templateId) {
+      selectedTemplate = templatesData.find(t => t.id === templateId);
 
-  function nextStep() {
-    if (currentStep < 3) {
-      currentStep++;
-      updateUI();
-    }
-  }
-
-  function previousStep() {
-    if (currentStep > 1) {
-      currentStep--;
-      updateUI();
-    }
-  }
-
-  function updateUI() {
-    // Hide all steps
-    for (let i = 1; i <= 3; i++) {
-      document.getElementById(`step-${i}`).classList.add('hidden');
-    }
-
-    // Show current step
-    document.getElementById(`step-${currentStep}`).classList.remove('hidden');
-
-    // Update buttons
-    document.getElementById('prev-btn').classList.toggle('hidden', currentStep === 1);
-    document.getElementById('next-btn').classList.toggle('hidden', currentStep === 3);
-    document.getElementById('create-btn').classList.toggle('hidden', currentStep !== 3);
-
-    // Update pool summary
-    if (currentStep === 3) {
-      updatePoolSummary();
-    }
-  }
-
-  function updatePoolSummary() {
-    const poolName = document.getElementById('pool-name').value;
-    const entryFee = document.getElementById('entry-fee').value;
-    const maxUses = document.getElementById('max-uses').value;
-
-    const summary = document.getElementById('pool-summary');
-    summary.innerHTML = `
-      <p><strong>Template:</strong> ${selectedTemplate.name}</p>
-      <p><strong>Pool Name:</strong> ${poolName}</p>
-      <p><strong>Entry Fee:</strong> $${(entryFee / 100).toFixed(2)}</p>
-      <p><strong>Max Participants:</strong> ${maxUses}</p>
-      <p><strong>Invite Code:</strong> Generated after creation</p>
-    `;
-  }
-
-  // Handle form submission
-  document.getElementById('create-pool-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const formData = {
-      template_id: selectedTemplate.id,
-      name: document.getElementById('pool-name').value,
-      entry_fee_cents: parseInt(document.getElementById('entry-fee').value),
-      max_uses: parseInt(document.getElementById('max-uses').value),
-    };
-
-    try {
-      const response = await fetch('/api/pools/create-from-template', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify(formData),
+      // Update card styles
+      document.querySelectorAll('.template-card').forEach(card => {
+        card.classList.remove('border-vig-400', 'bg-slate-800');
+        card.classList.add('border-slate-700');
       });
 
-      const result = await response.json();
-
-      if (response.ok) {
-        alert(`Pool created successfully! Invite code: ${result.invite_code}`);
-        window.location.href = `/${result.slug}`;
-      } else {
-        alert(`Error: ${result.error}`);
+      const selectedCard = document.getElementById(`template-${templateId}`);
+      if (selectedCard) {
+        selectedCard.classList.remove('border-slate-700');
+        selectedCard.classList.add('border-vig-400', 'bg-slate-800');
       }
-    } catch (error) {
-      console.error('Error creating pool:', error);
-      alert('Failed to create pool');
+
+      // Update entry fee default
+      if (selectedTemplate.default_entry_fee_cents) {
+        document.getElementById('entry-fee').value = selectedTemplate.default_entry_fee_cents / 100;
+      }
+
+      // Auto-advance to next step after a brief delay
+      setTimeout(() => nextStep(), 200);
     }
-  });
-</script>
+
+    function nextStep() {
+      if (currentStep < 3) {
+        // Validate current step before advancing
+        if (currentStep === 1 && !selectedTemplate) {
+          showError('Please select a template');
+          return;
+        }
+
+        if (currentStep === 2) {
+          const poolName = document.getElementById('pool-name').value;
+          const maxUses = document.getElementById('max-uses').value;
+          const entryFee = document.getElementById('entry-fee').value;
+
+          if (!poolName || !maxUses || !entryFee) {
+            showError('Please fill in all required fields');
+            return;
+          }
+        }
+
+        currentStep++;
+        updateUI();
+      }
+    }
+
+    function previousStep() {
+      if (currentStep > 1) {
+        currentStep--;
+        updateUI();
+      }
+    }
+
+    function updateUI() {
+      // Hide all steps
+      for (let i = 1; i <= 3; i++) {
+        const stepEl = document.getElementById(`step-${i}`);
+        if (stepEl) stepEl.classList.add('hidden');
+      }
+
+      // Show current step
+      const currentStepEl = document.getElementById(`step-${currentStep}`);
+      if (currentStepEl) currentStepEl.classList.remove('hidden');
+
+      // Update step indicators
+      for (let i = 1; i <= 3; i++) {
+        const indicator = document.getElementById(`step-${i}-indicator`);
+        if (!indicator) continue;
+
+        const circle = indicator.querySelector('div');
+        if (i < currentStep) {
+          // Completed step
+          indicator.className = 'flex items-center text-green-400';
+          circle.className = 'w-8 h-8 rounded-full border-2 flex items-center justify-center bg-green-400 text-slate-900 border-green-400';
+        } else if (i === currentStep) {
+          // Current step
+          indicator.className = 'flex items-center text-vig-400';
+          circle.className = 'w-8 h-8 rounded-full border-2 flex items-center justify-center bg-vig-400 text-slate-900 border-vig-400';
+        } else {
+          // Future step
+          indicator.className = 'flex items-center text-slate-600';
+          circle.className = 'w-8 h-8 rounded-full border-2 flex items-center justify-center border-slate-600';
+        }
+      }
+
+      // Update buttons
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+      const createBtn = document.getElementById('create-btn');
+
+      prevBtn.classList.toggle('hidden', currentStep === 1);
+      nextBtn.classList.toggle('hidden', currentStep === 3 || createdPoolData);
+      createBtn.classList.toggle('hidden', currentStep !== 3 || createdPoolData);
+
+      // Update pool summary on step 3
+      if (currentStep === 3) {
+        updatePoolSummary();
+      }
+    }
+
+    function updatePoolSummary() {
+      const poolName = document.getElementById('pool-name').value || 'Not set';
+      const maxUses = document.getElementById('max-uses').value || '10';
+      const entryFee = document.getElementById('entry-fee').value || '50';
+      const paymentDeadline = document.getElementById('payment-deadline').value;
+
+      const summary = document.getElementById('pool-summary');
+      summary.innerHTML = `
+        <div class="flex justify-between py-2 border-b border-slate-700">
+          <span class="text-slate-400">Template</span>
+          <span class="text-white">${selectedTemplate?.name || 'Not selected'}</span>
+        </div>
+        <div class="flex justify-between py-2 border-b border-slate-700">
+          <span class="text-slate-400">Pool Name</span>
+          <span class="text-white">${poolName}</span>
+        </div>
+        <div class="flex justify-between py-2 border-b border-slate-700">
+          <span class="text-slate-400">Entry Fee</span>
+          <span class="text-white">$${parseFloat(entryFee).toFixed(2)}</span>
+        </div>
+        <div class="flex justify-between py-2 border-b border-slate-700">
+          <span class="text-slate-400">Max Participants</span>
+          <span class="text-white">${maxUses}</span>
+        </div>
+        ${paymentDeadline ? `
+          <div class="flex justify-between py-2 border-b border-slate-700">
+            <span class="text-slate-400">Payment Deadline</span>
+            <span class="text-white">${new Date(paymentDeadline).toLocaleString()}</span>
+          </div>
+        ` : ''}
+        <div class="flex justify-between py-2">
+          <span class="text-slate-400">Type</span>
+          <span class="text-white">${selectedTemplate?.pool_type || 'N/A'}</span>
+        </div>
+      `;
+    }
+
+    function showError(message) {
+      const errorDiv = document.getElementById('error-message');
+      errorDiv.querySelector('p').textContent = message;
+      errorDiv.classList.remove('hidden');
+      setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+    }
+
+    function hideError() {
+      document.getElementById('error-message').classList.add('hidden');
+    }
+
+    // Navigation button handlers
+    document.getElementById('prev-btn')?.addEventListener('click', previousStep);
+    document.getElementById('next-btn')?.addEventListener('click', nextStep);
+
+    // Form submission
+    document.getElementById('create-pool-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+
+      const poolName = document.getElementById('pool-name').value;
+      const maxUses = parseInt(document.getElementById('max-uses').value);
+      const entryFeeCents = Math.round(parseFloat(document.getElementById('entry-fee').value) * 100);
+      const paymentDeadline = document.getElementById('payment-deadline').value;
+
+      const createBtn = document.getElementById('create-btn');
+      createBtn.disabled = true;
+      createBtn.textContent = 'Creating...';
+
+      try {
+        const response = await fetch('/api/pools/create-from-template', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_id: selectedTemplate.id,
+            name: poolName,
+            entry_fee_cents: entryFeeCents,
+            max_uses: maxUses,
+            payment_deadline: paymentDeadline ? new Date(paymentDeadline).getTime() / 1000 : undefined,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          createdPoolData = result;
+          document.getElementById('invite-code').textContent = result.invite_code;
+          document.getElementById('manage-pool-link').href = `/pools/${result.event_id}/manage`;
+          document.getElementById('invite-code-display').classList.remove('hidden');
+          document.getElementById('nav-buttons').classList.add('hidden');
+          document.getElementById('pool-summary').classList.add('hidden');
+        } else {
+          showError(result.error || 'Failed to create pool');
+          createBtn.disabled = false;
+          createBtn.textContent = 'Create Pool';
+        }
+      } catch (error) {
+        console.error('Error creating pool:', error);
+        showError('Failed to create pool. Please try again.');
+        createBtn.disabled = false;
+        createBtn.textContent = 'Create Pool';
+      }
+    });
+
+    function copyInviteCode() {
+      const inviteCode = document.getElementById('invite-code').textContent;
+      navigator.clipboard.writeText(inviteCode).then(() => {
+        const btn = document.querySelector('#invite-code-display button');
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = originalText, 2000);
+      });
+    }
+  </script>
+</Layout>

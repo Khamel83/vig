@@ -1,0 +1,328 @@
+---
+/**
+ * Pool Management Page
+ * Allows pool admins to manage pool settings, invite codes, and access draft
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { validateToken } from '../../../lib/auth';
+import { getInvitesByEvent } from '../../../lib/invites';
+import { paymentSettings } from '../../../lib/payments';
+
+// Get pool ID from URL
+const poolId = Astro.params.id;
+
+// Check authentication
+const token = Astro.cookies.get('vig_session')?.value;
+let currentUser = null;
+
+if (token) {
+  currentUser = await validateToken(
+    Astro.locals.runtime.env.DB,
+    Astro.locals.runtime.env.JWT_SECRET || '',
+    token
+  );
+}
+
+// Redirect if not authenticated
+if (!currentUser) {
+  return Astro.redirect('/login');
+}
+
+// Get pool details
+const poolStmt = await Astro.locals.runtime.env.DB.prepare(
+  'SELECT * FROM events WHERE id = ?'
+).bind(poolId);
+const pool = await poolStmt.first();
+
+// Redirect if pool doesn't exist
+if (!pool) {
+  return Astro.redirect('/dashboard');
+}
+
+// Check if user is admin or pool creator
+const isAdmin = currentUser.is_admin || pool.created_by === currentUser.id;
+
+if (!isAdmin) {
+  return Astro.redirect('/dashboard');
+}
+
+// Get invite codes for this pool
+const inviteCodes = await getInvitesByEvent(Astro.locals.runtime.env.DB, poolId);
+
+// Get payment settings
+const settings = await paymentSettings.getByEvent(Astro.locals.runtime.env.DB, poolId);
+
+// Get participant count
+const participantsStmt = await Astro.locals.runtime.env.DB.prepare(
+  'SELECT COUNT(*) as count FROM event_participants WHERE event_id = ?'
+).bind(poolId);
+const participantsResult = await participantsStmt.first();
+const participantCount = participantsResult?.count || 0;
+---
+
+<Layout title={`Manage ${pool.name}`}>
+  <div class="min-h-screen bg-slate-900 text-white">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+      <!-- Header -->
+      <div class="mb-8">
+        <a href={`/pools/${poolId}`} class="text-vig-400 hover:underline mb-4 inline-block">
+          ← Back to Pool
+        </a>
+        <h1 class="text-3xl font-bold mb-2">{pool.name}</h1>
+        <p class="text-slate-400">Pool Management</p>
+      </div>
+
+      <!-- Pool Status -->
+      <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 mb-6">
+        <h2 class="text-xl font-semibold mb-4">Pool Status</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p class="text-slate-400 text-sm">Status</p>
+            <p class="text-white font-medium capitalize">{pool.status}</p>
+          </div>
+          <div>
+            <p class="text-slate-400 text-sm">Type</p>
+            <p class="text-white font-medium capitalize">{pool.pool_type}</p>
+          </div>
+          <div>
+            <p class="text-slate-400 text-sm">Participants</p>
+            <p class="text-white font-medium">{participantCount}</p>
+          </div>
+          <div>
+            <p class="text-slate-400 text-sm">Entry Fee</p>
+            <p class="text-white font-medium">
+              {settings ? `$${(settings.entry_fee_cents / 100).toFixed(2)}` : 'Not set'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invite Codes -->
+      <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 mb-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold">Invite Codes</h2>
+          <button
+            onclick="createInviteCode()"
+            class="bg-vig-600 hover:bg-vig-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+            + Create Invite Code
+          </button>
+        </div>
+
+        {inviteCodes.length === 0 ? (
+          <p class="text-slate-400 text-center py-4">No invite codes yet. Create one to invite players!</p>
+        ) : (
+          <div class="space-y-3">
+            {inviteCodes.map(invite => (
+              <div class="flex items-center justify-between bg-slate-700 rounded-lg p-4">
+                <div>
+                  <p class="text-2xl font-mono font-bold text-vig-400">{invite.code}</p>
+                  <p class="text-sm text-slate-400">
+                    {invite.uses}/{invite.max_uses} used
+                    {invite.expires_at ? ` • Expires ${new Date(invite.expires_at * 1000).toLocaleDateString()}` : ''}
+                  </p>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    onclick="copyInviteCode('{invite.code}')"
+                    class="bg-slate-600 hover:bg-slate-500 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                  >
+                    Copy
+                  </button>
+                  <a
+                    href={`/join?code=${invite.code}`}
+                    target="_blank"
+                    class="bg-vig-600 hover:bg-vig-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                  >
+                    Test Link
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 mb-6">
+        <h2 class="text-xl font-semibold mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <a
+            href={`/admin/payments?event_id=${poolId}`}
+            class="bg-slate-700 hover:bg-slate-600 rounded-lg p-4 transition-colors"
+          >
+            <h3 class="font-semibold text-white mb-1">Review Payments</h3>
+            <p class="text-sm text-slate-400">Confirm or reject payment submissions</p>
+          </a>
+          {pool.pool_type === 'wins' && (
+            <a
+              href={`/drafts/${poolId}`}
+              class="bg-slate-700 hover:bg-slate-600 rounded-lg p-4 transition-colors"
+            >
+              <h3 class="font-semibold text-white mb-1">Start Draft</h3>
+              <p class="text-sm text-slate-400">Open the draft room for team selection</p>
+            </a>
+          )}
+        </div>
+      </div>
+
+      <!-- Pool Lifecycle -->
+      <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+        <h2 class="text-xl font-semibold mb-4">Pool Lifecycle</h2>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="font-medium text-white">Current Status</p>
+              <p class="text-sm text-slate-400 capitalize">{pool.status}</p>
+            </div>
+            {pool.status === 'draft' && (
+              <button
+                onclick="updatePoolStatus('open')"
+                class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Open Pool
+              </button>
+            )}
+            {pool.status === 'open' && (
+              <button
+                onclick="updatePoolStatus('locked')"
+                class="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Lock Predictions
+              </button>
+            )}
+            {pool.status === 'locked' && (
+              <button
+                onclick="updatePoolStatus('completed')"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Mark Complete
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Invite Code Modal -->
+  <dialog id="create-invite-modal" class="bg-slate-800 rounded-lg p-6 border border-slate-700 text-white">
+    <h3 class="text-xl font-bold mb-4">Create Invite Code</h3>
+    <div class="space-y-4 mb-6">
+      <div>
+        <label class="block text-sm font-medium mb-2">Max Uses</label>
+        <input
+          type="number"
+          id="invite-max-uses"
+          min="1"
+          max="100"
+          value="1"
+          class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-vig-500"
+        />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-2">Expires (optional)</label>
+        <input
+          type="datetime-local"
+          id="invite-expires"
+          class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-vig-500"
+        />
+      </div>
+    </div>
+    <div id="invite-error" class="hidden bg-red-900/20 border border-red-800 rounded-lg p-3 mb-4">
+      <p class="text-red-400 text-sm"></p>
+    </div>
+    <div class="flex gap-3">
+      <button
+        onclick="closeInviteModal()"
+        class="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        onclick="submitInviteCode()"
+        class="flex-1 bg-vig-600 hover:bg-vig-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+      >
+        Create
+      </button>
+    </div>
+  </dialog>
+
+  <script>
+    const poolId = {poolId};
+
+    function copyInviteCode(code) {
+      navigator.clipboard.writeText(code).then(() => {
+        alert(`Invite code ${code} copied to clipboard!`);
+      });
+    }
+
+    function createInviteCode() {
+      document.getElementById('create-invite-modal').showModal();
+    }
+
+    function closeInviteModal() {
+      document.getElementById('create-invite-modal').close();
+      document.getElementById('invite-max-uses').value = '1';
+      document.getElementById('invite-expires').value = '';
+      document.getElementById('invite-error').classList.add('hidden');
+    }
+
+    async function submitInviteCode() {
+      const maxUses = parseInt(document.getElementById('invite-max-uses').value);
+      const expiresInput = document.getElementById('invite-expires').value;
+      const expiresAt = expiresInput ? new Date(expiresInput).getTime() / 1000 : undefined;
+
+      try {
+        const response = await fetch('/api/invites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_id: poolId,
+            max_uses: maxUses,
+            expires_at: expiresAt,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          // Reload page to show new invite code
+          window.location.reload();
+        } else {
+          const error = document.getElementById('invite-error');
+          error.querySelector('p').textContent = result.error || 'Failed to create invite code';
+          error.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error creating invite code:', error);
+        alert('Failed to create invite code');
+      }
+    }
+
+    async function updatePoolStatus(newStatus) {
+      if (!confirm(`Change pool status to "${newStatus}"?`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/pools/{poolId}/lifecycle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          window.location.reload();
+        } else {
+          alert(result.error || 'Failed to update pool status');
+        }
+      } catch (error) {
+        console.error('Error updating pool status:', error);
+        alert('Failed to update pool status');
+      }
+    }
+  </script>
+</Layout>

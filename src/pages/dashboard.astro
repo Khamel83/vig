@@ -2,14 +2,11 @@
 import Layout from '../layouts/Layout.astro';
 import DashboardHeader from '../components/DashboardHeader.astro';
 import PaymentCard from '../components/PaymentCard.astro';
+import PaymentModal from '../components/PaymentModal.astro';
 import MyPools from '../components/MyPools.astro';
 import UpcomingGames from '../components/UpcomingGames.astro';
 import MyPicks from '../components/MyPicks.astro';
-import type { Payment, Event, User } from '../lib/db';
-import { events } from '../lib/db';
-import { payments } from '../lib/payments';
 import { validateToken } from '../lib/auth';
-import type { KVNamespace } from '@cloudflare/workers-types';
 ---
 
 <Layout title="Dashboard">
@@ -19,28 +16,32 @@ import type { KVNamespace } from '@cloudflare/workers-types';
     <div class="container mx-auto px-4 py-8 max-w-6xl">
       <!-- Welcome Section -->
       <div class="mb-8">
-        <h1 class="text-3xl font-bold mb-2">Welcome, {user?.name}!</h1>
+        <h1 id="welcome-title" class="text-3xl font-bold mb-2">Welcome!</h1>
         <p class="text-slate-400">Here's your sports pool activity overview</p>
       </div>
 
       <!-- Payment Status -->
       <div class="mb-8">
-        <h2 class="text-xl font-semibold mb-4 flex items-center">
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-          </svg>
-          Payment Status
-        </h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+            </svg>
+            Payment Status
+          </h2>
+          <button
+            id="submit-payment-btn"
+            onclick="openSubmitPaymentModal()"
+            class="hidden bg-vig-600 hover:bg-vig-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+            Submit Payment
+          </button>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paymentsData.map(payment => (
-            <PaymentCard payment={payment} />
-          ))}
-          {paymentsData.length === 0 && (
-            <div class="col-span-full text-center py-8 text-slate-500">
-              No active pools with pending payments
-            </div>
-          )}
+        <div id="payments-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="col-span-full text-center py-8 text-slate-500">
+            Loading payments...
+          </div>
         </div>
       </div>
 
@@ -53,7 +54,9 @@ import type { KVNamespace } from '@cloudflare/workers-types';
           My Pools
         </h2>
 
-        <MyPools pools={userPools} />
+        <div id="pools-container">
+          <div class="text-center py-8 text-slate-500">Loading pools...</div>
+        </div>
       </div>
 
       <!-- My Picks -->
@@ -65,7 +68,9 @@ import type { KVNamespace } from '@cloudflare/workers-types';
           My Picks
         </h2>
 
-        <MyPicks userPicks={userPicks} />
+        <div id="picks-container">
+          <div class="text-center py-8 text-slate-500">Loading picks...</div>
+        </div>
       </div>
 
       <!-- Upcoming Games -->
@@ -77,33 +82,305 @@ import type { KVNamespace } from '@cloudflare/workers-types';
           Upcoming Games
         </h2>
 
-        <UpcomingGames upcomingGames={upcomingGames} />
+        <div id="games-container">
+          <div class="text-center py-8 text-slate-500">Loading games...</div>
+        </div>
       </div>
     </div>
   </div>
-</Layout>
 
-<script>
-  // This would be populated with actual data in a real implementation
-  const user = /* user data from session */;
-  const paymentsData = /* payments data */;
-  const userPools = /* user's pool data */;
-  const userPicks = /* user's picks */;
-  const upcomingGames = /* upcoming games data */;
+  <!-- Admin Link -->
+  <div id="admin-link" class="hidden fixed bottom-4 right-4">
+    <a
+      href="/admin/payments"
+      class="bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-4 rounded-lg shadow-lg transition-colors text-sm flex items-center gap-2"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      Admin Panel
+    </a>
+  </div>
 
-  // Function to refresh dashboard data
-  async function refreshDashboard() {
-    try {
-      const response = await fetch('/api/me');
-      const data = await response.json();
+  <!-- Payment Modals -->
+  <div id="payment-modals-container"></div>
 
-      // Update UI with fresh data
-      // This would update the dashboard components
-    } catch (error) {
-      console.error('Failed to refresh dashboard:', error);
+  <script>
+    let dashboardData: any = null;
+
+    async function loadDashboard() {
+      try {
+        const response = await fetch('/api/dashboard');
+        if (!response.ok) {
+          window.location.href = '/login';
+          return;
+        }
+        const data = await response.json();
+        dashboardData = data;
+        renderDashboard(data);
+      } catch (error) {
+        console.error('Failed to load dashboard:', error);
+        document.getElementById('payments-container')!.innerHTML = `
+          <div class="col-span-full text-center py-8 text-red-400">
+            Failed to load dashboard data
+          </div>
+        `;
+      }
     }
-  }
 
-  // Auto-refresh every 5 minutes
-  setInterval(refreshDashboard, 5 * 60 * 1000);
-</script>
+    function renderDashboard(data: any) {
+      // Update welcome message
+      const welcomeTitle = document.getElementById('welcome-title');
+      welcomeTitle!.textContent = `Welcome, ${data.user.name}!`;
+
+      // Render payments
+      renderPayments(data.payments);
+
+      // Render pools
+      renderPools(data.pools);
+
+      // Render picks
+      renderPicks(data.picks);
+
+      // Render games
+      renderGames(data.upcomingGames);
+
+      // Show admin link if admin
+      if (data.user.is_admin) {
+        const adminLink = document.getElementById('admin-link');
+        adminLink!.classList.remove('hidden');
+      }
+    }
+
+    function renderPayments(payments: any[]) {
+      const container = document.getElementById('payments-container');
+
+      if (payments.length === 0) {
+        container!.innerHTML = `
+          <div class="col-span-full text-center py-8 text-slate-500">
+            No payments yet
+          </div>
+        `;
+        return;
+      }
+
+      container!.innerHTML = payments.map(payment => {
+        const statusColors = {
+          pending: 'bg-yellow-900/20 border-yellow-800 text-yellow-400',
+          confirmed: 'bg-green-900/20 border-green-800 text-green-400',
+          rejected: 'bg-red-900/20 border-red-800 text-red-400',
+        };
+
+        return `
+          <div class="bg-slate-800 rounded-lg p-4 border ${statusColors[payment.status] || 'border-slate-700'}">
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="font-semibold text-white">${payment.event?.name || 'Unknown Pool'}</h3>
+              <span class="text-xs uppercase font-bold px-2 py-1 rounded">${payment.status}</span>
+            </div>
+            <p class="text-2xl font-bold text-vig-400 mb-1">$${(payment.amount_cents / 100).toFixed(2)}</p>
+            <p class="text-sm text-slate-400 capitalize">${payment.method}</p>
+            ${payment.transaction_id ? `<p class="text-xs text-slate-500 mt-1">Ref: ${payment.transaction_id}</p>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      // Show submit payment button if there are pending payments
+      const hasPending = payments.some((p: any) => p.status === 'pending');
+      const hasConfirmed = payments.some((p: any) => p.status === 'confirmed');
+
+      if (!hasConfirmed && payments.length > 0) {
+        const submitBtn = document.getElementById('submit-payment-btn');
+        submitBtn!.classList.remove('hidden');
+      }
+    }
+
+    function renderPools(pools: any[]) {
+      const container = document.getElementById('pools-container');
+
+      if (pools.length === 0) {
+        container!.innerHTML = `
+          <div class="text-center py-8 text-slate-500">
+            You haven't joined any pools yet
+          </div>
+        `;
+        return;
+      }
+
+      container!.innerHTML = pools.map(pool => `
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <h3 class="font-semibold text-white mb-1">${pool.name}</h3>
+          <p class="text-sm text-slate-400">${pool.sport?.toUpperCase() || ''} Pool</p>
+          <a href="/${pool.slug}" class="text-vig-400 hover:underline text-sm">View Pool →</a>
+        </div>
+      `).join('');
+    }
+
+    function renderPicks(picks: any[]) {
+      const container = document.getElementById('picks-container');
+
+      if (picks.length === 0) {
+        container!.innerHTML = `
+          <div class="text-center py-8 text-slate-500">
+            You haven't made any picks yet
+          </div>
+        `;
+        return;
+      }
+
+      container!.innerHTML = picks.map(pick => `
+        <div class="bg-slate-800 rounded-lg p-3 border border-slate-700 flex justify-between items-center">
+          <div>
+            <p class="font-medium text-white">${pick.option_name}</p>
+            <p class="text-sm text-slate-400">${pick.event_name}</p>
+          </div>
+          <a href="/${pick.event_slug}" class="text-vig-400 hover:underline text-sm">View →</a>
+        </div>
+      `).join('');
+    }
+
+    function renderGames(games: any[]) {
+      const container = document.getElementById('games-container');
+
+      if (games.length === 0) {
+        container!.innerHTML = `
+          <div class="text-center py-8 text-slate-500">
+            No upcoming games
+          </div>
+        `;
+        return;
+      }
+
+      container!.innerHTML = games.map(game => `
+        <div class="bg-slate-800 rounded-lg p-3 border border-slate-700 flex justify-between items-center">
+          <div class="flex items-center gap-4">
+            <span class="text-slate-400 text-sm">${game.away_team_name || 'Away'}</span>
+            <span class="text-white font-bold">@</span>
+            <span class="text-slate-400 text-sm">${game.home_team_name || 'Home'}</span>
+          </div>
+          <span class="text-slate-500 text-sm">${new Date(game.scheduled_at * 1000).toLocaleDateString()}</span>
+        </div>
+      `).join('');
+    }
+
+    function openSubmitPaymentModal() {
+      // Find first pending payment event
+      const pendingPayment = dashboardData.payments.find((p: any) => p.status === 'pending');
+
+      if (!pendingPayment) {
+        alert('No pending payments found');
+        return;
+      }
+
+      // Create modal dynamically
+      const modalContainer = document.getElementById('payment-modals-container');
+      modalContainer!.innerHTML = `
+        <div id="payment-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div class="bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4 border border-slate-700">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-bold text-white">Submit Payment</h2>
+              <button onclick="closePaymentModal()" class="text-slate-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="mb-4 p-3 bg-slate-700 rounded-lg">
+              <p class="text-sm text-slate-300">Pool: <span class="font-semibold text-white">${pendingPayment.event?.name || 'Unknown'}</span></p>
+              <p class="text-sm text-slate-300">Amount: <span class="font-semibold text-vig-400">$${(pendingPayment.amount_cents / 100).toFixed(2)}</span></p>
+            </div>
+
+            <form id="payment-form" onsubmit="submitPayment(event)">
+              <input type="hidden" name="event_id" value="${pendingPayment.event_id}" />
+              <input type="hidden" name="amount_cents" value="${pendingPayment.amount_cents}" />
+
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-2">Payment Method *</label>
+                  <select name="method" required class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-vig-500">
+                    <option value="venmo">Venmo</option>
+                    <option value="cashapp">CashApp</option>
+                    <option value="cash">Cash</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-2">Transaction ID (optional)</label>
+                  <input type="text" name="transaction_id" placeholder="e.g., Venmo transaction ID" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500" />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-2">Notes (optional)</label>
+                  <textarea name="notes" rows="2" placeholder="Any additional information..." class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 resize-none"></textarea>
+                </div>
+
+                <div id="payment-error" class="hidden bg-red-900/20 border border-red-800 rounded-lg p-3">
+                  <p class="text-red-400 text-sm"></p>
+                </div>
+
+                <button type="submit" id="submit-payment-btn" class="w-full bg-vig-600 hover:bg-vig-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  Submit Payment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function closePaymentModal() {
+      const modalContainer = document.getElementById('payment-modals-container');
+      modalContainer!.innerHTML = '';
+    }
+
+    async function submitPayment(event: Event) {
+      event.preventDefault();
+
+      const form = event.target as HTMLFormElement;
+      const formData = new FormData(form);
+      const errorDiv = document.getElementById('payment-error');
+      const submitBtn = document.getElementById('submit-payment-btn') as HTMLButtonElement;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      try {
+        const response = await fetch('/api/payments/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_id: formData.get('event_id'),
+            amount_cents: parseInt(formData.get('amount_cents') as string),
+            method: formData.get('method'),
+            transaction_id: formData.get('transaction_id') || undefined,
+            notes: formData.get('notes') || undefined,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Failed to submit payment');
+        }
+
+        // Reload dashboard
+        loadDashboard();
+        closePaymentModal();
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to submit payment';
+        errorDiv!.querySelector('p')!.textContent = errorMessage;
+        errorDiv!.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Payment';
+      }
+    }
+
+    // Load dashboard on mount
+    loadDashboard();
+
+    // Refresh every 5 minutes
+    setInterval(loadDashboard, 5 * 60 * 1000);
+  </script>
+</Layout>

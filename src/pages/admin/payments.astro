@@ -1,0 +1,255 @@
+---
+/**
+ * Admin Payment Review Page
+ * Allows admins to confirm/reject payments
+ */
+import Layout from '../../layouts/Layout.astro';
+import { payments } from '@/lib/payments';
+import { validateToken } from '@/lib/auth';
+import { requireAuth } from '@/lib/middleware';
+import type { Context } from 'astro';
+
+// Check authentication (admin only)
+const token = Astro.cookies.get('vig_session')?.value;
+if (!token) {
+  return Astro.redirect('/login');
+}
+
+const currentUser = await validateToken(
+  Astro.locals.runtime.env.DB,
+  Astro.locals.runtime.env.JWT_SECRET || '',
+  token
+);
+
+if (!currentUser || !currentUser.is_admin) {
+  return Astro.redirect('/dashboard');
+}
+
+// Get all pending payments
+const allPayments = await payments.getByEvent(Astro.locals.runtime.env.DB, 'all');
+const pendingPayments = allPayments.filter((p: any) => p.status === 'pending');
+
+// Fetch user and event details for each payment
+const paymentsWithDetails = await Promise.all(
+  pendingPayments.map(async (payment: any) => {
+    // Get user details
+    const userStmt = await Astro.locals.runtime.env.DB.prepare(
+      'SELECT id, name, email FROM users WHERE id = ?'
+    ).bind(payment.user_id);
+    const user = await userStmt.first();
+
+    // Get event details
+    const eventStmt = await Astro.locals.runtime.env.DB.prepare(
+      'SELECT id, name, sport FROM events WHERE id = ?'
+    ).bind(payment.event_id);
+    const event = await eventStmt.first();
+
+    return {
+      ...payment,
+      user: user ? {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      } : null,
+      event: event ? {
+        id: event.id,
+        name: event.name,
+        sport: event.sport,
+      } : null,
+    };
+  })
+);
+---
+
+<Layout title="Admin - Payment Review">
+  <div class="min-h-screen bg-slate-900 text-white">
+    <div class="container mx-auto px-4 py-8">
+      <div class="mb-6">
+        <h1 class="text-3xl font-bold mb-2">Payment Review</h1>
+        <p class="text-slate-400">
+          {pendingPayments.length} pending payment{pendingPayments.length !== 1 ? 's' : ''} to review
+        </p>
+      </div>
+
+      {pendingPayments.length === 0 ? (
+        <div class="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center">
+          <div class="text-green-400 text-6xl mb-4">✓</div>
+          <h2 class="text-xl font-bold mb-2">All Caught Up!</h2>
+          <p class="text-slate-400">No pending payments to review.</p>
+          <a
+            href="/admin"
+            class="inline-block mt-4 text-vig-400 hover:underline"
+          >
+            Back to Admin Dashboard
+          </a>
+        </div>
+      ) : (
+        <div class="space-y-4">
+          {paymentsWithDetails.map((payment: any) => (
+            <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h3 class="text-lg font-bold text-white mb-1">
+                    {payment.user?.name || 'Unknown User'}
+                  </h3>
+                  <p class="text-sm text-slate-400">{payment.user?.email}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-2xl font-bold text-vig-400">
+                    ${(payment.amount_cents / 100).toFixed(2)}
+                  </p>
+                  <p class="text-sm text-slate-400 capitalize">{payment.method}</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
+                <div>
+                  <p class="text-slate-400">Pool</p>
+                  <p class="text-white font-medium">
+                    {payment.event?.name || 'Unknown Event'}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-slate-400">Transaction ID</p>
+                  <p class="text-white font-medium">
+                    {payment.transaction_id || 'Not provided'}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-slate-400">Submitted</p>
+                  <p class="text-white font-medium">
+                    {new Date(payment.created_at * 1000).toLocaleDateString()}
+                  </p>
+                </div>
+                {payment.notes && (
+                  <div>
+                    <p class="text-slate-400">Notes</p>
+                    <p class="text-white font-medium">{payment.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              <div class="flex gap-3">
+                <button
+                  onclick={`confirmPayment('${payment.id}', '${payment.user?.name || 'User'}')`}
+                  class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Confirm
+                </button>
+                <button
+                  onclick={`rejectPayment('${payment.id}', '${payment.user?.name || 'User'}')`}
+                  class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <dialog id="confirm-dialog" class="bg-slate-800 rounded-lg p-6 border border-slate-700 text-white">
+    <h3 id="confirm-title" class="text-xl font-bold mb-4"></h3>
+    <p id="confirm-message" class="text-slate-300 mb-4"></p>
+    <div class="flex gap-3 mb-4">
+      <input
+        type="text"
+        id="confirm-notes"
+        placeholder="Optional notes..."
+        class="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500"
+      />
+    </div>
+    <div class="flex gap-3">
+      <button
+        onclick="closeConfirmDialog()"
+        class="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        id="confirm-action-btn"
+        onclick=""
+        class="flex-1 bg-vig-600 hover:bg-vig-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+      >
+        Confirm
+      </button>
+    </div>
+  </dialog>
+
+  <script>
+    let currentPaymentId = '';
+    let currentAction = '';
+    const dialog = document.getElementById('confirm-dialog') as HTMLDialogElement;
+
+    function confirmPayment(paymentId: string, userName: string) {
+      currentPaymentId = paymentId;
+      currentAction = 'confirm';
+
+      const title = document.getElementById('confirm-title');
+      const message = document.getElementById('confirm-message');
+      const btn = document.getElementById('confirm-action-btn') as HTMLButtonElement;
+
+      title!.textContent = 'Confirm Payment';
+      message!.textContent = `Confirm payment from ${userName}?`;
+      btn.textContent = 'Confirm';
+      btn.onclick = () => executeAction();
+      btn.className = 'flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors';
+
+      dialog.showModal();
+    }
+
+    function rejectPayment(paymentId: string, userName: string) {
+      currentPaymentId = paymentId;
+      currentAction = 'reject';
+
+      const title = document.getElementById('confirm-title');
+      const message = document.getElementById('confirm-message');
+      const btn = document.getElementById('confirm-action-btn') as HTMLButtonElement;
+
+      title!.textContent = 'Reject Payment';
+      message!.textContent = `Reject payment from ${userName}?`;
+      btn.textContent = 'Reject';
+      btn.onclick = () => executeAction();
+      btn.className = 'flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors';
+
+      dialog.showModal();
+    }
+
+    function closeConfirmDialog() {
+      dialog.close();
+      (document.getElementById('confirm-notes') as HTMLInputElement).value = '';
+    }
+
+    async function executeAction() {
+      const notes = (document.getElementById('confirm-notes') as HTMLInputElement).value;
+
+      try {
+        const response = await fetch('/api/payments/confirm', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            payment_id: currentPaymentId,
+            action: currentAction,
+            notes: notes || undefined,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Failed to update payment');
+        }
+
+        // Reload page
+        window.location.reload();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Failed to update payment');
+      }
+    }
+  </script>
+</Layout>

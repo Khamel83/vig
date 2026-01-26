@@ -1,0 +1,172 @@
+---
+/**
+ * PaymentModal - Modal for submitting payments
+ */
+interface Props {
+  eventId: string;
+  eventName: string;
+  entryFeeCents: number;
+  paymentMethods?: Array<'venmo' | 'cashapp' | 'cash' | 'other'>;
+}
+
+const { eventId, eventName, entryFeeCents, paymentMethods = ['venmo', 'cashapp'] } = Astro.props;
+
+const paymentMethodLabels: Record<string, string> = {
+  venmo: 'Venmo',
+  cashapp: 'CashApp',
+  cash: 'Cash',
+  other: 'Other',
+};
+---
+
+<div id="payment-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
+  <div class="bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4 border border-slate-700">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-white">Submit Payment</h2>
+      <button onclick="closePaymentModal()" class="text-slate-400 hover:text-white">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="mb-4 p-3 bg-slate-700 rounded-lg">
+      <p class="text-sm text-slate-300">Pool: <span class="font-semibold text-white">{eventName}</span></p>
+      <p class="text-sm text-slate-300">Amount: <span class="font-semibold text-vig-400">${(entryFeeCents / 100).toFixed(2)}</span></p>
+    </div>
+
+    <form id="payment-form" onsubmit="submitPayment(event)">
+      <input type="hidden" name="event_id" value={eventId} />
+      <input type="hidden" name="amount_cents" value={entryFeeCents} />
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">
+            Payment Method *
+          </label>
+          <select
+            name="method"
+            required
+            class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-vig-500"
+          >
+            {paymentMethods.map(method => (
+              <option value={method}>{paymentMethodLabels[method]}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">
+            Transaction ID / Reference (optional)
+          </label>
+          <input
+            type="text"
+            name="transaction_id"
+            placeholder="e.g., Venmo transaction ID"
+            class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">
+            Notes (optional)
+          </label>
+          <textarea
+            name="notes"
+            rows="3"
+            placeholder="Any additional information..."
+            class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-vig-500 resize-none"
+          ></textarea>
+        </div>
+
+        <div id="payment-error" class="hidden bg-red-900/20 border border-red-800 rounded-lg p-3">
+          <p class="text-red-400 text-sm"></p>
+        </div>
+
+        <button
+          type="submit"
+          id="submit-payment-btn"
+          class="w-full bg-vig-600 hover:bg-vig-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Submit Payment
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openPaymentModal() {
+    const modal = document.getElementById('payment-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closePaymentModal() {
+    const modal = document.getElementById('payment-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    // Reset form
+    document.getElementById('payment-form').reset();
+    document.getElementById('payment-error').classList.add('hidden');
+  }
+
+  async function submitPayment(event: Event) {
+    event.preventDefault();
+
+    const form = event.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const errorDiv = document.getElementById('payment-error');
+    const submitBtn = document.getElementById('submit-payment-btn') as HTMLButtonElement;
+
+    // Disable button
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+
+    try {
+      const response = await fetch('/api/payments/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event_id: formData.get('event_id'),
+          amount_cents: parseInt(formData.get('amount_cents') as string),
+          method: formData.get('method'),
+          transaction_id: formData.get('transaction_id') || undefined,
+          notes: formData.get('notes') || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to submit payment');
+      }
+
+      // Close modal and reload page
+      closePaymentModal();
+      window.location.reload();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit payment';
+      errorDiv.querySelector('p')!.textContent = errorMessage;
+      errorDiv.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Payment';
+    }
+  }
+
+  // Close modal on escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closePaymentModal();
+    }
+  });
+
+  // Close modal on backdrop click
+  document.getElementById('payment-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('payment-modal')) {
+      closePaymentModal();
+    }
+  });
+</script>

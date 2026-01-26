@@ -6,23 +6,32 @@
 import { buildGoogleAuthUrl, generateOAuthState } from '@/lib/oauth-google';
 import type { Context } from 'astro';
 
+const PKCE_CODE_VERIFIER_LENGTH = 128;
+
 export async function GET(context: Context): Promise<Response> {
-  const { kv } = context.locals.runtime.env;
+  const { kv, GOOGLE_OAUTH_CLIENT_ID, SITE_URL } = context.locals.runtime.env;
+
+  // Get invite code from query params (for join flow)
+  const inviteCode = context.locals.url.searchParams.get('invite_code');
 
   // Generate OAuth state and PKCE challenge
   const state = generateOAuthState();
   const { code_challenge } = generatePKCE();
 
-  // Store OAuth state in KV with redirect_uri
-  const redirectUri = `${context.locals.runtime.env.SITE_URL}/api/auth/google-callback`;
+  const clientId = GOOGLE_OAUTH_CLIENT_ID;
+  const redirectUri = `${SITE_URL}/api/auth/google-callback`;
+
+  // Store OAuth state in KV with redirect_uri and invite code
   await storeOAuthState(kv, state, {
     code_verifier: generateRandomString(PKCE_CODE_VERIFIER_LENGTH),
     redirect_uri: redirectUri,
-    user_data: {},
+    user_data: {
+      invite_code: inviteCode || undefined,
+    },
   });
 
   // Build Google auth URL
-  const authUrl = buildGoogleAuthUrl(state, code_challenge);
+  const authUrl = buildGoogleAuthUrl(state, code_challenge, clientId, redirectUri);
 
   // Return 302 redirect to Google
   return Response.redirect(authUrl, 302);

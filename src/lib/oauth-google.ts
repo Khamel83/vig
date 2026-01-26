@@ -74,22 +74,21 @@ export async function removeOAuthState(kv: KVNamespace, state: string): Promise<
 }
 
 // Get Google OAuth2 configuration
-export function getGoogleOAuthConfig() {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+export function getGoogleOAuthConfig(clientId: string, redirectUri: string) {
   if (!clientId) {
     throw new Error('GOOGLE_OAUTH_CLIENT_ID environment variable is required');
   }
 
   return {
     clientId,
-    redirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI || `${process.env.SITE_URL}/api/auth/google-callback`,
+    redirectUri,
     scopes: ['openid', 'profile', 'email'],
   };
 }
 
 // Build Google OAuth2 authorization URL
-export function buildGoogleAuthUrl(state: string, code_challenge: string): string {
-  const config = getGoogleOAuthConfig();
+export function buildGoogleAuthUrl(state: string, code_challenge: string, clientId: string, redirectUri: string): string {
+  const config = getGoogleOAuthConfig(clientId, redirectUri);
   const params = new URLSearchParams({
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
@@ -112,9 +111,11 @@ interface GoogleTokenResponse {
 
 async function exchangeCodeForTokens(
   code: string,
-  code_verifier: string
+  code_verifier: string,
+  clientId: string,
+  redirectUri: string
 ): Promise<GoogleTokenResponse> {
-  const config = getGoogleOAuthConfig();
+  const config = getGoogleOAuthConfig(clientId, redirectUri);
   const params = new URLSearchParams({
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
@@ -169,7 +170,9 @@ export async function handleGoogleOAuthCallback(
   code_verifier: string,
   db: D1Database,
   kv: KVNamespace,
-  jwtSecret: string
+  jwtSecret: string,
+  clientId: string,
+  redirectUri: string
 ): Promise<{ success: boolean; user?: any; token?: string; error?: string }> {
   try {
     // Verify state matches
@@ -182,7 +185,7 @@ export async function handleGoogleOAuthCallback(
     await removeOAuthState(kv, state);
 
     // Exchange code for tokens
-    const tokens = await exchangeCodeForTokens(code, code_verifier);
+    const tokens = await exchangeCodeForTokens(code, code_verifier, clientId, redirectUri);
 
     // Decode ID token
     const userInfo = decodeGoogleIdToken(tokens.id_token);
