@@ -137,8 +137,8 @@ CREATE INDEX idx_users_google_id ON users(google_id);
 
 **Google Cloud Console Setup**:
 - Create OAuth 2.0 client ID
-- Authorized redirect URI: `https://zoheri.com/api/auth/google-callback`
-- Authorized JavaScript origin: `https://zoheri.com`
+- Authorized redirect URI: `https://khamel.com/api/auth/google-callback`
+- Authorized JavaScript origin: `https://khamel.com`
 
 ### Phase 2: Payment Tracking System
 **Priority**: P0 (Critical - user requirement)
@@ -352,7 +352,7 @@ create  join   predictions  final    hide
 2. User clicks "Start a Pool", selects template (simplified 3-step wizard)
 3. User enters pool name, entry fee, payment deadline
 4. Pool created (status = 'draft'), invite code generated, auto-copied
-5. User shares invite link immediately: `zoheri.com/join?code=NBA26-KHAMEL`
+5. User shares invite link immediately: `khamel.com/join?code=NBA26-KHAMEL`
 6. New user clicks link → Google OAuth → auto-joins pool
 7. Pool becomes 'open' when creator starts it
 8. Admin transitions pool through lifecycle states
@@ -745,7 +745,7 @@ bd dep add epic-draft epic-templates  # Draft needs templates
 # Google OAuth
 GOOGLE_OAUTH_CLIENT_ID=<from Google Cloud Console>
 GOOGLE_OAUTH_CLIENT_SECRET=<from Google Cloud Console>
-GOOGLE_OAUTH_REDIRECT_URI=https://zoheri.com/api/auth/google-callback
+GOOGLE_OAUTH_REDIRECT_URI=https://khamel.com/api/auth/google-callback
 
 # Email (Resend)
 RESEND_API_KEY=<from Resend dashboard>

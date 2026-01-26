@@ -12,7 +12,7 @@ type EmailOptions = {
 // Send email using Resend
 export async function sendEmail(options: EmailOptions): Promise<{ success: boolean; error?: string }> {
   const resendApiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.ADMIN_EMAIL || 'noreply@zoheri.com';
+  const fromEmail = process.env.ADMIN_EMAIL || 'noreply@khamel.com';
 
   if (!resendApiKey) {
     console.error('RESEND_API_KEY not configured');

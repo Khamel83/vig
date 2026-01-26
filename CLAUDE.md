@@ -22,18 +22,18 @@
 
 **The Vig** - Cloudflare-native prediction pool framework for friends.
 
-Domain: `zoheri.com/nfl`, `zoheri.com/nba`, etc.
+Domain: `khamel.com/nfl`, `khamel.com/nba`, etc.
 
 ---
 
 ## Project Status
 
-**Phase**: MVP Complete - NBA26 pool live at `zoheri.com/nba26`
+**Phase**: MVP Complete - NBA26 pool live at `khamel.com/nba26`
 
 **Live Deployments:**
-- **NBA26 Pool**: `https://zoheri.com/nba26` (10 players, snake draft, auto-synced standings)
+- **NBA26 Pool**: `https://khamel.com/nba26` (10 players, snake draft, auto-synced standings)
 - **Auto-sync**: Every 3 hours via Cloudflare Cron (vig-sync worker)
-- **Route**: zoheri.com/nba26 → vig-6dw.pages.dev/nba26 (via Poytz redirector)
+- **Route**: khamel.com/nba26 → vig-6dw.pages.dev/nba26 (via Poytz redirector)
 
 **Target**: $0/month FOREVER (not just MVP)
 
@@ -109,10 +109,10 @@ export class LeaderboardDO {
 ## Path Routing
 
 ```
-zoheri.com/           → Landing (events list)
-zoheri.com/nfl-2025   → NFL Wins Pool 2025
-zoheri.com/nba-allstar → NBA All-Star
-zoheri.com/admin      → Admin dashboard
+khamel.com/           → Landing (events list)
+khamel.com/nfl-2025   → NFL Wins Pool 2025
+khamel.com/nba-allstar → NBA All-Star
+khamel.com/admin      → Admin dashboard
 ```
 
 Handled by Astro file-based routing + Cloudflare Pages Functions for API.
@@ -188,7 +188,7 @@ THE_RUNDOWN_API_KEY=
 RESEND_API_KEY=
 
 # Site
-SITE_URL=https://zoheri.com
+SITE_URL=https://khamel.com
 ADMIN_EMAIL=
 ```
 

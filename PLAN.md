@@ -4,7 +4,7 @@
 
 **The Vig** - A generic prediction pool framework for friends (NFL wins pools, March Madness, etc.) built entirely on Cloudflare's ecosystem.
 
-**Key Goal:** One codebase, 100% Cloudflare, path-based routing on `zoheri.com/nfl`, `zoheri.com/nba`, etc.
+**Key Goal:** One codebase, 100% Cloudflare, path-based routing on `khamel.com/nfl`, `khamel.com/nba`, etc.
 
 ---
 
@@ -24,7 +24,7 @@
 
 ### Domain Strategy
 
-- **Primary domain**: `zoheri.com` (already on Cloudflare DNS)
+- **Primary domain**: `khamel.com` (already on Cloudflare DNS)
 - **Path routing**: `/nfl`, `/nba`, `/march-madness`, etc.
 - **DNS**: Already managed by Cloudflare
 - **SSL**: Automatic via Cloudflare
@@ -209,10 +209,10 @@ vig/
 ### 1. Path-Based Routing
 
 ```
-zoheri.com/           → Landing page (events list)
-zoheri.com/nfl-2025   → NFL Wins Pool 2025
-zoheri.com/nba-allstar → NBA All-Star events
-zoheri.com/admin      → Admin dashboard
+khamel.com/           → Landing page (events list)
+khamel.com/nfl-2025   → NFL Wins Pool 2025
+khamel.com/nba-allstar → NBA All-Star events
+khamel.com/admin      → Admin dashboard
 ```
 
 ### 2. Auth Persistence
@@ -423,7 +423,7 @@ wrangler pages deploy dist --project-name=vig
 ```
 
 **4.2 DNS Configuration**
-- Already on Cloudflare (`zoheri.com`)
+- Already on Cloudflare (`khamel.com`)
 - Add CNAME/Page rule if needed
 - Path routing works automatically
 
@@ -475,7 +475,7 @@ THE_RUNDOWN_API_KEY=
 RESEND_API_KEY=
 
 # Site
-SITE_URL=https://zoheri.com
+SITE_URL=https://khamel.com
 ADMIN_EMAIL=
 ```
 
@@ -545,7 +545,7 @@ ADMIN_EMAIL=
 ## LIVE DEPLOYMENT: NBA26 Pool (January 2026)
 
 ### Overview
-The NBA 2026 pool is **live at `https://zoheri.com/nba26`** with:
+The NBA 2026 pool is **live at `https://khamel.com/nba26`** with:
 - 10 players (snake draft format)
 - 3 NBA teams per player
 - Automatic standings updates every 3 hours
@@ -555,7 +555,7 @@ The NBA 2026 pool is **live at `https://zoheri.com/nba26`** with:
 
 **1. Routing (via Poytz)**
 ```
-zoheri.com/nba26
+khamel.com/nba26
     ↓ (307 redirect via poytz worker)
 vig-6dw.pages.dev/nba26
     ↓ (Astro page)

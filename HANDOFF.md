@@ -22,7 +22,7 @@
 5. **Seed Teams** - Admin endpoint to populate teams for NFL/NBA events
 
 ### Recent Changes
-- App now lives at `/vig` base path (hidden from zoheri.com root)
+- App now lives at `/vig` base path (hidden from khamel.com root)
 - Added `robots.txt` + noindex meta (not searchable by Google)
 - Added NBA team data with real TheRundown IDs
 - Encrypted secrets stored at `.env.encrypted`
@@ -55,9 +55,9 @@
 2. **Live Scores** - TheRundown sync works but not scheduled
 3. **Durable Objects** - Real-time leaderboard needs separate Worker deploy
 
-### Integration with zoheri.com
+### Integration with khamel.com
 The app is configured for `/vig` base path. To make it work:
-- Option A: Deploy as subdomain (vig.zoheri.com)
+- Option A: Deploy as subdomain (vig.khamel.com)
 - Option B: Use Cloudflare route rules to proxy `/vig/*` to this Pages project
 
 ---

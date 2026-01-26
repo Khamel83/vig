@@ -60,6 +60,7 @@ import Layout from '../layouts/Layout.astro';
     }>;
     total_wins: number;
     total_losses: number;
+    win_pct: number;
     rank: number;
   }
 
@@ -67,7 +68,11 @@ import Layout from '../layouts/Layout.astro';
 
   async function loadNBA26() {
     try {
-      const response = await fetch('/api/events/nba26');
+      // Use absolute URL to API to avoid auth layer on khamel.com
+      const apiBase = window.location.hostname === 'khamel.com'
+        ? 'https://vig-6dw.pages.dev'
+        : '';
+      const response = await fetch(`${apiBase}/api/events/nba26`);
       const data = await response.json() as EventData;
 
       if (!response.ok || !data.event) {
@@ -115,6 +120,7 @@ import Layout from '../layouts/Layout.astro';
           teams: [],
           total_wins: 0,
           total_losses: 0,
+          win_pct: 0,
           rank: 0,
         });
       }
@@ -132,8 +138,17 @@ import Layout from '../layouts/Layout.astro';
       owner.total_losses += teamStanding.losses;
     }
 
-    // Convert to array and rank by total wins (descending), then by total losses (ascending)
+    // Calculate win % for each owner
+    for (const owner of ownerMap.values()) {
+      const totalGames = owner.total_wins + owner.total_losses;
+      owner.win_pct = totalGames > 0 ? owner.total_wins / totalGames : 0;
+    }
+
+    // Convert to array and rank by win % (descending), then by total wins (descending)
     const rankings = Array.from(ownerMap.values()).sort((a, b) => {
+      if (b.win_pct !== a.win_pct) {
+        return b.win_pct - a.win_pct;
+      }
       if (b.total_wins !== a.total_wins) {
         return b.total_wins - a.total_wins;
       }
@@ -173,11 +188,14 @@ import Layout from '../layouts/Layout.astro';
                 </div>
                 <div class="text-right">
                   <div class="text-2xl font-bold">
+                    <span class="text-vig-400">${(owner.win_pct * 100).toFixed(1)}%</span>
+                  </div>
+                  <div class="text-sm">
                     <span class="text-vig-400">${owner.total_wins}</span>
                     <span class="text-slate-500 mx-1">-</span>
                     <span class="text-red-400">${owner.total_losses}</span>
                   </div>
-                  <p class="text-xs text-slate-500">Win - Loss</p>
+                  <p class="text-xs text-slate-500">Win %</p>
                 </div>
               </div>
               <div class="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -201,7 +219,7 @@ import Layout from '../layouts/Layout.astro';
 
         <!-- Footer note -->
         <p class="text-center text-sm text-slate-500">
-          Standings update as games complete. Pick 3 teams, count their wins.
+          Standings update as games complete. Pick teams and count their wins.
         </p>
       </div>
     `;
