@@ -1,5 +1,5 @@
 name = "vig-standings"
-main = "scripts/sync-standings.js"
+main = "scripts/sync-standings.ts"
 compatibility_date = "2024-01-01"
 
 # D1 Database (same as main vig)

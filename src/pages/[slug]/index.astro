@@ -50,6 +50,12 @@ const { slug } = Astro.params;
     option_id: string;
   }
 
+  interface TeamStanding {
+    wins: number;
+    losses: number;
+    source: string;
+  }
+
   const container = document.getElementById('event-container') as HTMLDivElement;
   const slug = container.dataset.slug;
 
@@ -69,10 +75,13 @@ const { slug } = Astro.params;
         return;
       }
 
-      const { event, options, standings } = data as {
+      const { event, options, standings, team_standings, last_synced_at, sync_source } = data as {
         event: Event;
         options: Option[];
         standings: Standing[];
+        team_standings?: Record<string, TeamStanding>;
+        last_synced_at?: number;
+        sync_source?: string;
       };
 
       // Check if user is logged in
@@ -93,7 +102,7 @@ const { slug } = Astro.params;
         }
       }
 
-      renderEvent(event, options, standings, userSelections, token);
+      renderEvent(event, options, standings, userSelections, token, team_standings, last_synced_at, sync_source);
     } catch (error) {
       container.innerHTML = `
         <div class="text-center py-12">
@@ -110,7 +119,10 @@ const { slug } = Astro.params;
     options: Option[],
     standings: Standing[],
     userSelections: Selection[],
-    token: string | null
+    token: string | null,
+    team_standings?: Record<string, TeamStanding>,
+    last_synced_at?: number,
+    sync_source?: string
   ) {
     const selectedIds = new Set(userSelections.map((s) => s.option_id));
     const maxSelections = event.max_selections || 0;
@@ -122,6 +134,24 @@ const { slug } = Astro.params;
       completed: 'bg-slate-600',
     }[event.status] || 'bg-slate-600';
 
+    // Format last updated time
+    let lastUpdatedText = '';
+    if (last_synced_at) {
+      const secondsAgo = Math.floor(Date.now() / 1000) - last_synced_at;
+      const daysAgo = Math.floor(secondsAgo / 86400);
+      const hoursAgo = Math.floor((secondsAgo % 86400) / 3600);
+      if (daysAgo > 0) {
+        lastUpdatedText = `${daysAgo} day${daysAgo > 1 ? 's' : ''} ago`;
+      } else if (hoursAgo > 0) {
+        lastUpdatedText = `${hoursAgo} hour${hoursAgo > 1 ? 's' : ''} ago`;
+      } else {
+        lastUpdatedText = 'recently';
+      }
+      if (sync_source) {
+        lastUpdatedText += ` (${sync_source})`;
+      }
+    }
+
     container.innerHTML = `
       <div class="space-y-8">
         <!-- Header -->
@@ -132,6 +162,7 @@ const { slug } = Astro.params;
           </div>
           ${event.description ? `<p class="text-slate-400">${event.description}</p>` : ''}
           ${maxSelections ? `<p class="text-sm text-slate-500 mt-2">Pick ${maxSelections} teams</p>` : ''}
+          ${lastUpdatedText ? `<p class="text-sm text-slate-500 mt-2">Last updated: ${lastUpdatedText}</p>` : ''}
         </div>
 
         ${event.status === 'open' && !token ? `
@@ -167,12 +198,22 @@ const { slug } = Astro.params;
           <section>
             <h2 class="text-xl font-semibold mb-4">Teams</h2>
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              ${options.map((opt) => `
+              ${options.map((opt) => {
+                const standing = team_standings?.[opt.id];
+                return `
                 <div class="card py-4 text-center">
                   <div class="font-bold text-lg">${opt.abbreviation || opt.name.slice(0, 3).toUpperCase()}</div>
                   <div class="text-xs text-slate-400 truncate">${opt.name}</div>
+                  ${standing ? `
+                    <div class="mt-2 text-sm">
+                      <span class="text-green-400 font-medium">${standing.wins}</span>
+                      <span class="text-slate-500">-</span>
+                      <span class="text-red-400 font-medium">${standing.losses}</span>
+                    </div>
+                  ` : ''}
                 </div>
-              `).join('')}
+                `;
+              }).join('')}
             </div>
           </section>
         ` : ''}
