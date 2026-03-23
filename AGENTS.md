@@ -1,206 +1,123 @@
 <!-- FOR CLAUDE - NOT FOR HUMANS -->
-<!-- Humans: See README.md for setup, INDEX.md for skill reference -->
 
-# ONE_SHOT v7.4
+# ONE_SHOT v13 — Operator Framework
 
-> **UPDATE CHECK**: If this version is old, run: `curl -sL https://raw.githubusercontent.com/Khamel83/oneshot/master/oneshot.sh | bash`
-
-> **Context is the scarce resource.** Delegate aggressively, parallelize always, write state to disk.
+> **Context is the scarce resource.** Three operators, seven utilities. Discover skills on demand.
 
 ---
 
-## SKILL ROUTER (15 Core Skills)
+## OPERATORS
 
-```yaml
-skill_router:
-  # Entry
-  - pattern: "new project|build me|help me|/interview|/front-door"
-    skill: front-door
+### `/short` — Quick Iteration
 
-  # Interview Depth Overrides
-  - pattern: "/full-interview|full interview mode"
-    skill: full-interview
-    note: "Forces all 13+ questions, no bypass"
-
-  - pattern: "/quick-interview|quick interview mode"
-    skill: quick-interview
-    note: "Only Q1, Q2, Q6, Q12 with smart defaults"
-
-  - pattern: "/smart-interview|reset interview"
-    skill: smart-interview
-    note: "Reset to auto-detect depth (default)"
-
-  # Autonomous (headless mode)
-  - pattern: "autonomous|headless|background|overnight|just build it"
-    skill: autonomous-builder
-
-  # Planning
-  - pattern: "plan|design|how should|what's the approach"
-    skill: create-plan
-
-  - pattern: "implement|execute|build it|run the plan"
-    skill: implement-plan
-
-  # Task Tracking (persistent)
-  - pattern: "beads|ready tasks|what's next|next task|blockers|dependencies"
-    skill: beads
-
-  # Quality
-  - pattern: "bug|error|fix|debug|broken|not working"
-    skill: debugger
-
-  - pattern: "review|check code|is this safe|pr review"
-    skill: code-reviewer
-
-  # Lessons Learned (NEW)
-  - pattern: "oops|save this mistake|remember this|lessons learned|/lessons"
-    skill: oops
-
-  # Parallel Execution (NEW in v7.4)
-  - pattern: "validate|check everything|run all checks|pre-commit"
-    skill: parallel-validator
-
-  - pattern: "rename across|update all|batch|bulk|mass update"
-    skill: batch-processor
-
-  # Context Management
-  - pattern: "handoff|save context|before clear|context low"
-    skill: create-handoff
-
-  - pattern: "resume|continue|pick up|from handoff"
-    skill: resume-handoff
-
-  # Recovery & Thinking
-  - pattern: "stuck|looping|confused|start over"
-    skill: failure-recovery
-
-  - pattern: "think|ultrathink|super think|mega think"
-    skill: thinking-modes
-
-  # Secrets
-  - pattern: "secrets|env|credentials|api key"
-    skill: secrets-vault-manager
-
-  # Skills Discovery
-  - pattern: "browse skills|skillsmp|find skills|skill marketplace"
-    skill: skillsmp-browser
-
-  # Maintenance
-  - pattern: "/update|update oneshot|upgrade oneshot|check version"
-    skill: auto-updater
+```
+/short [scope]
 ```
 
-**All other skills**: Available on-demand via `/skill-name` or explicit request. See INDEX.md.
+**Behavior:**
+1. Load context: git log -5, TaskList, DECISIONS.md, BLOCKERS.md
+2. Ask: "What are you working on?"
+3. Discover skills on demand (~/.claude/skills/ index)
+4. Execute in burn-down mode
+5. Show delegation summary on completion
+
+**Decision defaults:** Simplest implementation, match existing patterns, skip refactors unless blocking.
+
+### `/full` — Structured Work
+
+```
+/full [project-description]
+```
+
+**Behavior:**
+1. Create/load IMPLEMENTATION_CONTEXT.md
+2. Structured intake: goals, scope, architecture, constraints
+3. Phase-based planning with milestones
+4. Skill discovery via ~/.claude/skills/ index
+5. Execute with context checkpoints (50% → suggest handoff, 70% → auto-handoff)
+6. Verify and show completion summary
+
+**For:** New projects, refactors, complex features.
+
+### `/conduct` — Multi-Model PMO Orchestrator
+
+```
+/conduct [idea or goal]
+```
+
+**Behavior:**
+1. Detect available providers (codex, gemini)
+2. Ask clarifying questions — BLOCKING, nothing runs until answered
+3. Create structured plan with task breakdown
+4. Route work across Claude + Codex + Gemini based on task type
+5. Loop until goal is fully met (not just started)
+
+**For:** Non-trivial tasks where you want autonomous execution across models until done.
 
 ---
 
-## AUTO-DELEGATION (v7.4)
+## UTILITY COMMANDS
 
-**CRITICAL**: These fire AUTOMATICALLY without user request.
-
-```yaml
-auto_delegation:
-  # File count triggers (>5 files → delegate)
-  - signal: "Glob/Grep returning >5 files"
-    action: "Spawn Explore agent, return summary only"
-
-  # Duration triggers (>15s → background)
-  - signal: "npm|pytest|docker|build command"
-    action: "run_in_background: true"
-
-  # Security triggers (auto-audit)
-  - signal: "Editing auth/secrets/credentials files"
-    action: "Spawn security-auditor in background"
-
-  # Context triggers (pre-emptive)
-  - signal: "Context >30% + complex task"
-    action: "Delegate exploration to subagent"
-  - signal: "Context >50%"
-    action: "Create handoff, delegate remaining"
-```
-
-**Key change from v7.3:** Bias toward delegation. Don't wait for user to say "background".
+| Command | Purpose |
+|---------|---------|
+| `/handoff` | Save context before /clear |
+| `/restore` | Resume from handoff |
+| `/research` | Background research |
+| `/freesearch` | Zero-token web search (Exa) |
+| `/doc` | Cache external docs |
+| `/vision` | Image/website analysis |
+| `/secrets` | SOPS/Age secrets |
 
 ---
 
-## RESILIENT EXECUTION (v7.4)
+## DECISION DEFAULTS
 
-**All long-running work runs in tmux** - survives terminal disconnect.
+When ambiguous, apply without asking:
 
-```yaml
-resilience:
-  # Default: All builds use tmux
-  - command: "oneshot-build"
-    mode: tmux_session
-    heartbeat: 30s
-    checkpoint: 5m
+| Ambiguity | Default |
+|-----------|---------|
+| Multiple implementations | **Simplest** |
+| Naming | Follow existing pattern |
+| Refactor opportunity | **Skip** unless blocking |
+| Stack | Follow CLAUDE.md |
+| Error handling | Match surrounding code |
+| Test framework | Use existing tests |
 
-  # Aggressive state sync
-  - trigger: "task status change"
-    action: "bd sync immediately"
-  - trigger: "file committed"
-    action: "bd sync"
-  - trigger: "every 5 minutes"
-    action: "checkpoint commit + bd sync"
-
-  # Recovery
-  - on_disconnect: "work continues in tmux"
-  - on_reconnect: "tmux attach -t oneshot-*"
-  - on_crash: "bd sync && bd ready to resume"
-```
-
-**Key principle:** If terminal dies, work continues. If work dies, state is recoverable.
+**Key rule:** When truly ambiguous, pick option A, note in DECISIONS.md.
 
 ---
 
-## CONTEXT MANAGEMENT
+## AUTO-APPROVED ACTIONS
 
-### Task Groups (3-5 tasks each)
-```
-Plan has N tasks → Create beads tasks with dependencies
-Execute one group → bd update status → Check context
-If context > 50% → Pause, bd sync, suggest /compact
-After /compact → bd ready shows exactly what's next
-```
+- Reading any file
+- Writing to scope-matched files
+- Running tests and linters
+- Creating DECISIONS.md, BLOCKERS.md, CHANGES.md
+- Git commit (not push)
+- Creating native tasks
 
-### Beads = Persistent State
-All task progress tracked via beads (survives /clear, /compact, sessions):
-```bash
-bd ready --json     # What's next?
-bd update <id> --status in_progress
-bd close <id> --reason "commit: abc123"
-bd sync             # Always sync before session end
-```
+## REQUIRES CONFIRMATION
 
-### Pre-Implementation Flow
-```
-If context > 30% before implement-plan:
-  → bd sync (save current state)
-  → Suggest /compact first
-```
+- Destructive operations (rm -rf, DROP TABLE)
+- Git push to shared branches
+- External API calls that cost money
+- Deploying to production
 
 ---
 
-## FILE HIERARCHY
+## DELEGATION
 
-| Priority | File | Purpose |
-|----------|------|---------|
-| 1 | CLAUDE.md | Project-specific rules |
-| 2 | AGENTS.md | This file (skill routing) |
-| 3 | `.beads/` | Persistent task state (bd ready) |
-| 4 | TODO.md | Session visibility |
+Before delegating: assess (complexity, criticality, uncertainty)
+After delegating: verify the result
+On failure: escalate (original → inline → human)
 
----
-
-## THINKING MODES
-
-| Trigger | Depth |
-|---------|-------|
-| "think" | Quick check |
-| "think hard" | Trade-offs |
-| "ultrathink" | Architecture |
-| "super think" | System design |
-| "mega think" | Strategic |
+**Delegation summary on completion:**
+```
+📊 Delegation Summary
+├─ N delegations, avg reward: X.XX
+├─ Best: [agent] (reward) - [description]
+└─ Tip: [optimization]
+```
 
 ---
 
@@ -210,41 +127,10 @@ If context > 30% before implement-plan:
 
 **NEVER rewrite from scratch.** Extend, refactor, use existing solutions.
 
-**USER TIME IS PRECIOUS. AGENT COMPUTE IS CHEAP.**
-Ask ALL questions UPFRONT. Get ALL info BEFORE coding.
+**USER TIME IS PRECIOUS.** Agents should make reasonable decisions autonomously.
 
 ---
 
-## RESET
+## VERSION
 
-Say `(ONE_SHOT)` to re-anchor to these rules.
-
----
-
-**Version**: 7.4 | **Core Skills**: 20 | **Advanced**: 17 | **Beads**: Required | **Auto-Delegation**: Aggressive | **Resilient**: tmux
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+v13 | 10 skills | Operators discover skills on demand
