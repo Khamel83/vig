@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "quality_gate_threshold": 75,
+  "max_iterations": 20,
+  "providers": {
+    "claude": { "enabled": true, "role": "orchestrator" },
+    "codex": { "enabled": "auto", "role": "adversarial" },
+    "gemini": { "enabled": "auto", "role": "research" }
+  },
+  "circuit_breaker": {
+    "max_task_failures": 3,
+    "max_consecutive_blockers": 3
+  },
+  "session_recovery": {
+    "handoff_at_context_percent": 80
+  }
+}
