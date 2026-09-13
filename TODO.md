@@ -91,3 +91,9 @@ npm run db:migrate        # Run D1 migrations
 
 ---
 *Updated: 2026-01-24 - Deployed to Cloudflare Pages at https://vig-6dw.pages.dev*
+<!-- janitor:begin:todo -->
+- [ ] Add NBA teams seed data
+- [ ] Email notifications via Resend
+- [ ] Mobile responsive polish
+- [ ] Squares pool type
+<!-- janitor:end:todo -->
