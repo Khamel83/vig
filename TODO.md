@@ -92,19 +92,7 @@ npm run db:migrate        # Run D1 migrations
 ---
 *Updated: 2026-01-24 - Deployed to Cloudflare Pages at https://vig-6dw.pages.dev*
 <!-- janitor:begin:todo -->
-## Todo
-
-### Backlog (as published)
-
 - [ ] Add NBA teams seed data
 - [ ] Email notifications via Resend
 - [ ] Mobile responsive polish
-- [ ] Squares pool type
-
-### Observations from published evidence
-
-- A commit subject, `feat: Implement complete Vig expansion (OAuth2, Payments, Dashboard, Templates, Debts, Squares)`, suggests the "Squares pool type" backlog item may already be implemented, yet the published TODO.md still lists it as open. This is unconfirmed from the supplied material.
-- Commit subjects also reference OAuth, payments, a draft system, dashboard, templates, and debts, none of which are tracked as items in the published TODO.md.
-- The published TODO.md footer states a last update of 2026-01-24 and deployment to Cloudflare Pages at https://vig-6dw.pages.dev, while a later commit subject says the domain was updated to khamel.com.
-- Standings/sports-data work appears frequently in commit subjects (API-Sports, Playwright, sports-reference.com, direct HTML scraping, ESPN); the current data source is not confirmed by this evidence.
 <!-- janitor:end:todo -->
