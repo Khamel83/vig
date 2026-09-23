@@ -81,13 +81,14 @@ curl -X POST "https://vig-6dw.pages.dev/api/admin/seed-teams?event=nba-2026" \
 
 ---
 
-## Secrets (Encrypted in .env.encrypted)
+## Secrets
 
-```
-CLOUDFLARE_API_TOKEN=KGaU59NGLjbl9gSx3u_fstFernCkiHnjTU5gk9ec
-THE_RUNDOWN_API_KEY=1f8078b504msh2dab2e95ae91a37p1f30cdjsncbb1bc069dca
-JWT_SECRET=pwu3lIrRy12UFTj4tkXa9dBzqpMDI2/WgsMzjLO3T8w=
-RESEND_API_KEY=re_eBJ15D15_6DyRjvZhiM6u8oebHWxK9Wb9
-```
-
-Decrypt: `sops -d .env.encrypted > .env`
+`.env.encrypted` is the SOPS source for `CLOUDFLARE_API_TOKEN`,
+`THE_RUNDOWN_API_KEY`, `JWT_SECRET`, and `RESEND_API_KEY`. Never put their
+values in documentation, chat, logs, or Git. The Cloudflare token has ID
+`e89e78734e0ff766b7294761c8b1ee7a`, is for Vig Pages/D1 deployment,
+and was rolled on 2026-09-23 after its old value was found in this file.
+Decrypt only to a protected local runtime file when needed. The other three
+values were also present in the old committed handoff and require separate
+provider/runtime rotation; removing them from this file does not erase Git
+history.
